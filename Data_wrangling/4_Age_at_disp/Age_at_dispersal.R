@@ -12,14 +12,14 @@ setwd("Data_wrangling")
 #tblBirdID.csv is the whole table taken from the database
 birth_date <- read.csv('DB_tables_queries/tblBirdID.csv')
 #Subset to required data
-birth_date <- subset(birth_date, select=c('BirdID', 'BirthDate'))
+birth_date2 <- subset(birth_date, select=c('BirdID', 'BirthDate'))
 
 #Data produced by R script 'Identifying_dispersers_and_philos_final_FPID_sub'
 disp_philo <- read.csv("2_Identifying_dispersers_and_philopatrics/disp_and_philo.csv")
 
 
 #Check data
-str(birth_date)
+str(birth_date2)
 str(disp_philo)
 
 
@@ -34,7 +34,7 @@ disp_dates <- disp_philo %>%
 
 
 #Add birth date
-disp_birth_dates <- merge(disp_dates, birth_date, by='BirdID')
+disp_birth_dates <- merge(disp_dates, birth_date2, by='BirdID')
 
 
 #Add a new column for the age at dispersal, this will be calculated and autofilled later
@@ -50,14 +50,15 @@ disp_birth_dates$BirthDate <- as.Date(disp_birth_dates$BirthDate , "%d/%m/%Y")
 # Calculate and plot age at dispersal (in days) ---------------------------
 
 #Calculate difference between birth and dispersal date (in days) and the mean
-disp_birth_dates$Age_at_disp <- difftime(disp_birth_dates$DispersalDate, disp_birth_dates$BirthDate, units = c("days"))
-mean(disp_birth_dates$Age_at_disp)
-range(disp_birth_dates$Age_at_disp)
+disp_birth_dates2 <- disp_birth_dates
+disp_birth_dates2$Age_at_disp <- difftime(disp_birth_dates2$DispersalDate, disp_birth_dates2$BirthDate, units = c("days"))
+mean(disp_birth_dates2$Age_at_disp)
+range(disp_birth_dates2$Age_at_disp)
 
 
 
 #Plot data
-a <- ggplot(disp_birth_dates, aes(x=Age_at_disp)) 
+a <- ggplot(disp_birth_dates2, aes(x=Age_at_disp)) 
 a <- a + theme_minimal() +
   geom_histogram(binwidth=50,color="black",boundary = 0, closed = "left") +
   scale_x_continuous() +
@@ -66,13 +67,54 @@ a
 
 
 #Subset so it can be merged with philopatrics later in the script
-age_at_disp <- subset(disp_birth_dates, select=c('BirdID', 'Age_at_disp', 'DispersalDate', 'BirthDate'))
+age_at_disp <- subset(disp_birth_dates2, select=c('BirdID', 'Age_at_disp', 'DispersalDate', 'BirthDate'))
 
 
 
 
 # Create a subset that removes individuals that dispersed at <6 mo --------
-adjust_age_at_disp <- age_at_disp %>% filter(!(Age_at_disp < 180))
+adjust_age_at_disp <- age_at_disp %>% filter(!(Age_at_disp < 150))
+
+yng.dispersers <- age_at_disp %>% filter((Age_at_disp < 150))
+
+
+
+
+# Use second method to calculate age at dispersal -------------------------
+
+#First method uses estimated birth date for age at dispersal
+#This method will use the hatch date of an UR chick born in the birth field period of that focal individual
+
+
+#I will need BirdID, birthFPID and natal territoryID
+#As well a status list for the natal territory during the birth field period, to confirm the FL is UR
+#Although, if there is no FL, then we can assume that the FL hasn't been rung?
+#Then we need NestInfo to obtain a hatch date 
+
+
+#First, subset to list of birds with estimated birth dates
+birth_date3 <- birth_date %>% select(BirdID, BirthDate, BirthFieldPeriodID, BirthDateEstimated)
+
+disp_IDs <- disp_dates %>% select(BirdID)
+
+disp_birth_est <- merge(disp_IDs, birth_date3, by=c('BirdID'))
+
+disp_birth_estT <- disp_birth_est %>% 
+  filter(!(BirthDateEstimated == "FALSE")) %>% #most birds have an estimated birth date
+  select(!(BirthDateEstimated))
+
+
+
+#Next, identify if there is a UR FL in natal territory during birth FPID 
+
+
+
+
+
+
+
+
+
 
 
 
@@ -100,7 +142,7 @@ philo <- disp_philo %>%
   filter(Disperse == 0) 
 
 
-philo_birth <- merge(philo, birth_date, by = c('BirdID'))
+philo_birth <- merge(philo, birth_date2, by = c('BirdID'))
 
 
 #determine how old they are during the last FPID they were seen 
