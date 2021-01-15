@@ -6,6 +6,9 @@
 rm(list = ls())
 library("ggplot2")
 library("dplyr")
+library("lubridate")
+library("magrittr")
+
 getwd()
 setwd("Data_wrangling")
 
@@ -80,19 +83,13 @@ yng.dispersers <- age_at_disp %>% filter((Age_at_disp < 150))
 
 
 
-# Use second method to calculate age at dispersal -------------------------
+# Use second method to calculate birth date -------------------------
 
-#First method uses estimated birth date for age at dispersal
+#First (above) method uses estimated birth date for birth date
 #This method will use the hatch date of an UR chick born in the birth field period of that focal individual
 
 
-#I will need BirdID, birthFPID and natal territoryID
-#As well a status list for the natal territory during the birth field period, to confirm the FL is UR
-#Although, if there is no FL, then we can assume that the FL hasn't been rung?
-#Then we need NestInfo to obtain a hatch date 
-
-
-#First, subset to list of birds with estimated birth dates
+#First, subset to list of birds with estimated birth dates and FPIDs
 birth_date3 <- birth_date %>% select(BirdID, BirthDate, BirthFieldPeriodID, BirthDateEstimated)
 
 disp_IDs <- disp_philo %>% select(BirdID, NatalTerritory)
@@ -100,7 +97,7 @@ disp_IDs <- disp_philo %>% select(BirdID, NatalTerritory)
 disp_birth_est <- merge(disp_IDs, birth_date3, by=c('BirdID'))
 
 disp_birth_estT <- disp_birth_est %>% 
-  filter(!(BirthDateEstimated == "FALSE")) %>% #most birds have an estimated birth date
+  filter(!(BirthDateEstimated == "FALSE")) %>% #remove birds that have accurate birth dates
   select(!(BirthDateEstimated))
 
 
@@ -109,10 +106,11 @@ disp_birth_estT <- disp_birth_est %>%
 #Do this by checking whether there were any nests that produced a FL in natal territory during birth FPID
 nests <- read.csv('DB_tables_queries/qry_NestInfoWithTerrID.csv')
 nests$HatchDateLatest <- as.Date(nests$HatchDateLatest , "%d/%m/%Y")
+nests$FledgeDateLatest <- as.Date(nests$FledgeDateLatest , "%d/%m/%Y")
 
 nests.fl <- nests %>% 
-  mutate_if(is.character, list(~na_if(.,""))) %>%
-  filter(!(is.na(FledgeDateLatest))) %>%
+  mutate_if(is.character, list(~na_if(.,""))) %>% #fill blank cells with NAs
+  filter(!(is.na(FledgeDateLatest))) %>% #remove NAs i.e. nests that didnt produce FLs
   rename(NatalTerritory = TerritoryID, BirthFieldPeriodID = FieldPeriodID)
 
 #Merge with disperse data
@@ -120,23 +118,18 @@ disp_birth_nests <- merge(disp_birth_estT, nests.fl, by = c('NatalTerritory', 'B
 
 
 #Remove any nests that produced a known chick that wasn't the focal bird
-chick <- read.csv('DB_tables_queries/tblChickInfo.csv')
+chick <- read.csv('DB_tables_queries/tblChickInfo.csv') #read in all chick data 
 chick %<>% select(BirdID, NestID, HatchDate) %>%
   rename(ChickHatchDate = HatchDate, ChickID = BirdID)
 
-#Merge and remove
-test <- merge(disp_birth_nests, chick, by = c('NestID'), all.x = TRUE)
-test2 <- test %>%
-  filter(is.na(ChickID) | BirdID == ChickID) %>%
-  
-  
-  #Write script that calculates any missing hatch dates by minusing 14 days from hatch date
-  
-  
-  
-  
-  
 
+disp_nest_CH <- merge(disp_birth_nests, chick, by = c('NestID'), all.x = TRUE) #merge by nest ID to see whether the nest in focal birds natal territory during birth FPID had a rung chick
+disp_nest_noCH <- disp_nest_CH %>% 
+                  filter(is.na(ChickID) | BirdID == ChickID) %>% #remove if chick was present isn't focal bird 
+                  mutate(HatchDateLatest = as.Date(ifelse(is.na(HatchDateLatest), FledgeDateLatest - days(14), HatchDateLatest), origin="1970-01-01")) #if hatch date is missing, take fledge date and minus 14 days 
+  
+ 
+  
 #Remove nests with a hatch date later than first catch date
 catch <- read.csv('DB_tables_queries/qry_CatchesWithDate.csv')
 catch$OccasionDate <- as.Date(catch$OccasionDate , "%d/%m/%Y")
@@ -146,48 +139,104 @@ catch_filt <- catch %>%
   group_by(BirdID) %>%
   slice(which.min(OccasionDate))
 
-disp_birth_nests2 <- merge(disp_birth_nests, catch_filt, by = c('BirdID'))
-disp_birth_nests2  <- disp_birth_nests  %>% filter(!(HatchDateLatest > OccasionDate))
+disp_nests_hatch <- merge(disp_nest_noCH, catch_filt, by = c('BirdID'))
+disp_nests_hatch2  <- disp_nests_hatch %>% filter(!(HatchDateLatest > OccasionDate))
+
+
+#Make manual edits - for birds that have two nests in natal terr, check which one is more likely to be the correct nest, or remove both if neither are suitable
+disp_nests_corr <- disp_nests_hatch2 %>%
+                   filter(!(BirdID == 5517 | BirdID == 6213 | 
+                            BirdID == 5782 & NestNumber == 2 |
+                            BirdID == 6018 & NestNumber == 1 | 
+                            BirdID == 5498 & NestNumber == 2 |
+                            BirdID == 5530 & NestNumber == 1)) %>%
+                   select(BirdID, HatchDateLatest) %>%
+                   rename(BirthDate2 = HatchDateLatest)
+                   
+#Merge with original birth estimate data 
+birth_est1 <- disp_birth_est %>%        
+      select(BirdID, BirthDate, BirthDateEstimated) %>% 
+      rename(BirthDate1 = BirthDate) %>%
+      mutate(BirthDate1 = as.Date(BirthDate1, format = "%d/%m/%Y"))
+
+both_estimates <- merge(birth_est1, disp_nests_corr, by = c('BirdID'), all.x = TRUE) 
+
+both_estimates2 <- both_estimates %>%
+                   mutate(BirthDate2 = as.Date(ifelse(BirthDateEstimated == "FALSE", BirthDate1, BirthDate2), origin="1970-01-01")) %>%
+                   mutate(BirthDate2 = as.Date(ifelse(is.na(BirthDate2), BirthDate1, BirthDate2), origin="1970-01-01")) %>%
+                   select(!(BirthDateEstimated))
+                            
+    
+#Re-add disperse date to df
+birth_est_disp <- merge(both_estimates2, disp_dates, by = c('BirdID'), all.x = TRUE)
+birth_est_disp %<>% mutate(Disperse = ifelse(is.na(Disperse), 0, Disperse))
+
+
+#Calculate age at dispersal based on BirthDate1 and BirthDate2
+birth_est_disp$Age_at_disp1 <- difftime(birth_est_disp$DispersalDate, birth_est_disp$BirthDate1, units = c("days"))
+birth_est_disp$Age_at_disp2 <- difftime(birth_est_disp$DispersalDate, birth_est_disp$BirthDate2, units = c("days"))
+
+
+
+birth_est_disp1 <- birth_est_disp %>% filter(Disperse == 1)
+
+mean(birth_est_disp1$Age_at_disp1)
+range(birth_est_disp1$Age_at_disp1)
+
+mean(birth_est_disp1$Age_at_disp2)
+range(birth_est_disp1$Age_at_disp2)
 
 
 
 
-test <- disp_birth_nests2 %>%
-  count(BirdID) 
-
-#Remove bird 6213 manually 
-#Remove 3497 
-#5498 - remove one nest
-#remove 5517
-#5641 remove nest 1
-
-#IS THERE A WAY OF CHECKING WHETHER THE NEST HAD A CHICK THAT WAS RUNG IN IT?
-#IF I KNOW THAT THE BIRD IN THE NEST HAS BEEN RUNG, THEN I KNOW THE NEST DOES NOT BELONG TO FOCAL BIRD
+#Plot data
+a <- ggplot(birth_est_disp1, aes(x=Age_at_disp1)) 
+a <- a + theme_minimal() +
+  geom_histogram(binwidth=50,color="black",boundary = 0, closed = "left") +
+  scale_x_continuous() +
+  geom_vline(aes(xintercept = mean(Age_at_disp1)), linetype = "dashed", size = 0.6)
+a
 
 
+b <- ggplot(birth_est_disp1, aes(x=Age_at_disp2)) 
+b <- b + theme_minimal() +
+  geom_histogram(binwidth=50,color="black",boundary = 0, closed = "left") +
+  scale_x_continuous() +
+  geom_vline(aes(xintercept = mean(Age_at_disp2)), linetype = "dashed", size = 0.6)
+b
 
-# Remove philos under mean disp age ---------------------------------------
+
+
+
+# Remove philos under mean disp age for each disp age ---------------------------------------
 #Philopatrics that are below the mean age of dispersal may only be philopatrics because they are young and haven't reached the right age of dispersal (in case age is a driver of dispersal), rather than remaining philopatric because they are not exploratory
 #Therefore, determine 95%CI and remove any philos that are below lower bound of mean age at dispersal
 
 #Determine 95% CI 
-a <- mean(adjust_age_at_disp$Age_at_disp)
-s <- sd(adjust_age_at_disp$Age_at_disp)
-n <- 90
-error <- qnorm(0.975)*s/sqrt(n)
-lower <- a - error
-upper <- a + error
-lower
-upper
+a1 <- mean(birth_est_disp1$Age_at_disp1)
+s1 <- sd(birth_est_disp1$Age_at_disp1)
+n1 <- 90
+error <- qnorm(0.975)*s1/sqrt(n1)
+(lower1 <- a1 - error)
+(upper1 <- a1 + error)
 
-#therefore, if age of philopatric is below the upper bound, remove from dataset
+#Repeat for age_at_disp2
+a2 <- mean(birth_est_disp1$Age_at_disp2)
+s2 <- sd(birth_est_disp1$Age_at_disp2)
+n2 <- 90
+error <- qnorm(0.975)*s2/sqrt(n2)
+(lower2 <- a2 - error)
+(upper2 <- a2 + error)
+
+
+
+
+
+#If age of philopatric are below the upper bound, remove from dataset
 
 #retrieve philo data
-philo <- disp_philo %>%
+philo <- birth_est_disp %>%
   filter(Disperse == 0) 
-
-
-philo_birth <- merge(philo, birth_date2, by = c('BirdID'))
 
 
 #determine how old they are during the last FPID they were seen 
@@ -211,55 +260,85 @@ status_latest <- status_dates %>%
 
 
 #merge with philo data
-date_last_seen <- merge(philo_birth, status_latest, by =c('BirdID'))
-date_last_seen$BirthDate <- as.Date(date_last_seen$BirthDate , "%d/%m/%Y")
+date_last_seen <- merge(philo, status_latest, by =c('BirdID'))
 
 
-#calculate age last seen on Cousin
-date_last_seen$Age_last_seen <- difftime(date_last_seen$Date_last_seen, date_last_seen$BirthDate, units = c("days"))
+#calculate age last seen on Cousin for both birth dates 
+date_last_seen$Age_last_seen1 <- difftime(date_last_seen$Date_last_seen, date_last_seen$BirthDate1, units = c("days"))
+date_last_seen$Age_last_seen2 <- difftime(date_last_seen$Date_last_seen, date_last_seen$BirthDate2, units = c("days"))
+
+
+#remove individuals that have not reached upper 95% CI - age_last_seen1 and age_last_seen2 
+older1 <- date_last_seen %>% filter(Age_last_seen1 > upper1)
+younger1 <- date_last_seen %>% filter(Age_last_seen1 < upper1)
+
+older2 <- date_last_seen %>% filter(Age_last_seen2 > upper2)
+younger2 <- date_last_seen %>% filter(Age_last_seen2 < upper2)
 
 
 
-#remove individuals that have not reached upper 95% CI
-older <- date_last_seen %>% filter(Age_last_seen > 508)
-
-younger <- date_last_seen %>% filter(Age_last_seen < 508)
 
 
-##Save
-#File including ONLY philopatrics that have reached minimum age
 
-#Create column for age at dispersal - keep filled with NA as individuals are philopatric
-older$Age_at_disp <- NA
 
-#subset to match columns to dispersal vector, then rbind with dispersal vector
-older.simp <- subset(older, select=c('BirdID', 'Age_at_disp','DispersalDate', 'BirthDate'))
-older.simp <- rbind(Age_at_dispersal, older.simp)
+
+# Save --------------------------------------------------------------------
+
+#File to contain all birds tested for personality
+#Indicating estimated BirthDate1 (taken from database) and BirthDate2 (estimated using a combination of BirthDate1 and nest hatch dates)
+#As well as Age_at_disperal, calculated from using BirthDate1 (Age_at_dispersal1) and BirthDate2 (Age_at_dispersal2)
+#And whether philopatrics were old enough to make the dataset depending on the upper 95%CI of mean from Age_at_dispersal1/2
+
+
+older1$Reached_min_age_1 <- 1
+older2$Reached_min_age_2 <- 1 
+
+older <- merge(older1, older2, by=c('BirdID', 'BirthDate1', 'BirthDate1', 'BirthDate2', 
+                           'Disperse', 'DispersalDate', 'FieldPeriodID', 'Age_at_disp1', 
+                           'Age_at_disp2', 'Date_last_seen', 'Age_last_seen1', 'Age_last_seen2'), all = TRUE)
+
+older %<>% 
+  mutate(Reached_min_age_1 = ifelse(is.na(Reached_min_age_1), 0, Reached_min_age_1)) %>%
+  mutate(Reached_min_age_2 = ifelse(is.na(Reached_min_age_2), 0, Reached_min_age_2)) %>%
+  select(!(Date_last_seen)) %>%
+  select(!(Age_last_seen1)) %>% 
+  select(!(Age_last_seen2))
+  
+
+#Merge with dispersal data
+birth_est_disp1$Reached_min_age_1 <- NA #add column so df can rbind with philo data
+birth_est_disp1$Reached_min_age_2 <- NA
+
+
+older_disp_phi <- rbind(older, birth_est_disp1) #rbind with dispersal df
 
 
 #Add year of birth and year of dispersal as they are required as fixed and random effects for model
-older.simp$DispersalDate <- as.Date(older.simp$DispersalDate, "%Y-%m-%d") 
+#Add year of birth and year of dispersal as they are required as fixed and random effects for model
+older_disp_phi$DispersalDate <- as.Date(older_disp_phi$DispersalDate, "%Y-%m-%d") 
+older_disp_phi$DispersalYear <- as.numeric(format(older_disp_phi$DispersalDate,'%Y'))
+older_disp_phi$BirthYear1 <- as.numeric(format(older_disp_phi$BirthDate1,'%Y'))
+older_disp_phi$BirthYear2 <- as.numeric(format(older_disp_phi$BirthDate2,'%Y'))
 
-older.simp$DispersalYear <- as.numeric(format(older.simp$DispersalDate,'%Y'))
-older.simp$BirthYear <- as.numeric(format(older.simp$BirthDate,'%Y'))
+
+write.csv(older_disp_phi, '4_Age_at_disp/Age_at_dispersal_older.csv')
 
 
 
-#Save
-write.csv(older.simp, '4_Age_at_disp/Age_at_dispersal_older.csv', row.names = FALSE)
 
+
+# Save ALL without extra info on reaching minimum date --------------------------------------------------
 
 #File including all philopatrics, regardless of age last seen
-all <- Date_last_seen
-all$Age_at_disp <- NA
-all <- subset(all, select=c('BirdID', 'Age_at_disp','DispersalDate', 'BirthDate'))
-all <- rbind(Age_at_dispersal, all)
+all <- birth_est_disp
+all %<>% select('BirdID', 'Age_at_disp1', 'Age_at_disp2', 'DispersalDate', 'BirthDate1', 'BirthDate2')
+
 
 #Add year of birth and year of dispersal as they are required as fixed and random effects for model
 all$DispersalDate <- as.Date(all$DispersalDate, "%Y-%m-%d") 
-
 all$DispersalYear <- as.numeric(format(all$DispersalDate,'%Y'))
-all$BirthYear <- as.numeric(format(all$BirthDate,'%Y'))
+all$BirthYear1 <- as.numeric(format(all$BirthDate1,'%Y'))
+all$BirthYear2 <- as.numeric(format(all$BirthDate2,'%Y'))
 
 #Save
 write.csv(all, '4_Age_at_disp/Age_at_dispersal_all.csv', row.names = FALSE)
