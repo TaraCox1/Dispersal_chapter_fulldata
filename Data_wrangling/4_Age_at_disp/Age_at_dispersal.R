@@ -95,7 +95,7 @@ yng.dispersers <- age_at_disp %>% filter((Age_at_disp < 150))
 #First, subset to list of birds with estimated birth dates
 birth_date3 <- birth_date %>% select(BirdID, BirthDate, BirthFieldPeriodID, BirthDateEstimated)
 
-disp_IDs <- disp_dates %>% select(BirdID)
+disp_IDs <- disp_philo %>% select(BirdID, NatalTerritory)
 
 disp_birth_est <- merge(disp_IDs, birth_date3, by=c('BirdID'))
 
@@ -106,18 +106,63 @@ disp_birth_estT <- disp_birth_est %>%
 
 
 #Next, identify if there is a UR FL in natal territory during birth FPID 
+#Do this by checking whether there were any nests that produced a FL in natal territory during birth FPID
+nests <- read.csv('DB_tables_queries/qry_NestInfoWithTerrID.csv')
+nests$HatchDateLatest <- as.Date(nests$HatchDateLatest , "%d/%m/%Y")
+
+nests.fl <- nests %>% 
+  mutate_if(is.character, list(~na_if(.,""))) %>%
+  filter(!(is.na(FledgeDateLatest))) %>%
+  rename(NatalTerritory = TerritoryID, BirthFieldPeriodID = FieldPeriodID)
+
+#Merge with disperse data
+disp_birth_nests <- merge(disp_birth_estT, nests.fl, by = c('NatalTerritory', 'BirthFieldPeriodID'))
+
+
+#Remove any nests that produced a known chick that wasn't the focal bird
+chick <- read.csv('DB_tables_queries/tblChickInfo.csv')
+chick %<>% select(BirdID, NestID, HatchDate) %>%
+  rename(ChickHatchDate = HatchDate, ChickID = BirdID)
+
+#Merge and remove
+test <- merge(disp_birth_nests, chick, by = c('NestID'), all.x = TRUE)
+test2 <- test %>%
+  filter(is.na(ChickID) | BirdID == ChickID) %>%
+  
+  
+  #Write script that calculates any missing hatch dates by minusing 14 days from hatch date
+  
+  
+  
+  
+  
+
+#Remove nests with a hatch date later than first catch date
+catch <- read.csv('DB_tables_queries/qry_CatchesWithDate.csv')
+catch$OccasionDate <- as.Date(catch$OccasionDate , "%d/%m/%Y")
+
+catch_filt <- catch %>%
+  select(BirdID, OccasionDate)%>%
+  group_by(BirdID) %>%
+  slice(which.min(OccasionDate))
+
+disp_birth_nests2 <- merge(disp_birth_nests, catch_filt, by = c('BirdID'))
+disp_birth_nests2  <- disp_birth_nests  %>% filter(!(HatchDateLatest > OccasionDate))
 
 
 
 
+test <- disp_birth_nests2 %>%
+  count(BirdID) 
 
+#Remove bird 6213 manually 
+#Remove 3497 
+#5498 - remove one nest
+#remove 5517
+#5641 remove nest 1
 
-
-
-
-
-
-
+#IS THERE A WAY OF CHECKING WHETHER THE NEST HAD A CHICK THAT WAS RUNG IN IT?
+#IF I KNOW THAT THE BIRD IN THE NEST HAS BEEN RUNG, THEN I KNOW THE NEST DOES NOT BELONG TO FOCAL BIRD
 
 
 
