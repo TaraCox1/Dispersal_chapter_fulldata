@@ -3,6 +3,7 @@
 rm(list = ls())
 
 library(dplyr)
+library(magrittr)
 
 setwd("Data_wrangling")
 
@@ -16,10 +17,10 @@ disp_philo <- read.csv("2_Identifying_dispersers_and_philopatrics/disp_and_philo
 
 #Correct data format
 #Including data type
-disp_philo $BirdID <- factor(disp_philo $BirdID)
-disp_philo $FieldPeriodID <- factor(disp_philo $FieldPeriodID) #first field period seen in new territory
-disp_philo $TerritoryID <- factor(disp_philo $TerritoryID)
-disp_philo $NatalTerritory <- factor(disp_philo $NatalTerritory)
+disp_philo$BirdID <- factor(disp_philo $BirdID)
+disp_philo$FieldPeriodID <- factor(disp_philo $FieldPeriodID) #first field period seen in new territory
+disp_philo$TerritoryID <- factor(disp_philo $TerritoryID)
+disp_philo$NatalTerritory <- factor(disp_philo $NatalTerritory)
 
 
 #Filtering down to required data by removing philopatrics and additional info on dispersers 
@@ -32,28 +33,23 @@ disp <- disp_philo [!(disp_philo $Disperse==0),]
 t_data <- read.csv('DB_tables_queries/Territory_sizes_2021-01-08.csv')
 
 
-#Only territory data for Cousin
-t_dataCN <- t_data[(t_data$Island=="CN"),]
-
-
-#Subset to required columns
-t_location <- subset(t_dataCN, select = c('TerritoryID', 'FieldPeriodID', 'Easting', 'Northing', 'SizeMethod'))
-
-
-#REMOVE ROWS THAT DON'T HAVE THE LONG AND LAT
-t_location2 <- na.omit(t_location)
-
-
 #As there are multiple methods of measurements for some territories within a season, they must be filtered to only contain the latest method
 #Remember: D > G > P method
 #Therefore, if we group by TerritoryID and FieldPeriodID, arrange them into size/alphabetical order including method, I then slice to remove the first record within each grouping
-t_location_final <- t_location2 %>% 
-  group_by(TerritoryID, FieldPeriodID) %>% 
-  arrange(TerritoryID, FieldPeriodID, SizeMethod) %>% 
-  slice(1)
+#Refine data
+
+t_location  <- t_data %>%
+               filter(Island=="CN") %>% #Only Cousin
+               select(TerritoryID, FieldPeriodID, Easting, Northing, SizeMethod, TerritorySize) %>% #Required data
+               filter(!(is.na(Easting))) %>% #Remove rows without long and lat
+               group_by(TerritoryID, FieldPeriodID) %>% 
+               arrange(TerritoryID, FieldPeriodID, SizeMethod) %>% 
+               slice(1)
 
 
-t_location_final <- subset(t_location_final, select = -c(SizeMethod))
+t_location_final <- t_location %>% 
+                    select(!(SizeMethod)) %>%
+                    rename(DisperseTerritorySize = TerritorySize)
 
 
 # Merge -------------------------------------------------------------------
@@ -139,6 +135,36 @@ disperse.dist <- terri.location
 disperse.dist$Distance <- sqrt((disperse.dist$DisperseTerrNorthing - disperse.dist$NatalTerrNorthing)^2 + (disperse.dist$DisperseTerrEasting - disperse.dist$NatalTerrEasting)^2)
 
 disperse.dist
+
+
+
+
+
+# Check distance when using east and north for new territory FP --------
+
+#Get field period first seen in new territory
+
+
+
+
+
+#Add easting and northing for natal and new territories
+
+
+
+
+
+
+
+
+
+
+# Add natal and new territory size ----------------------------------------
+
+
+
+
+
 
 
 
