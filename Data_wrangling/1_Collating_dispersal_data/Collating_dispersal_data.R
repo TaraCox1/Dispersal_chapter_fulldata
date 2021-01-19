@@ -10,6 +10,10 @@ rm(list = ls())
 library(tidyverse)
 library(dplyr)
 
+getwd()
+setwd("Data_wrangling")
+
+
 #Read in csv produced by Access query t_TerritoryandStatus'
 #Contains statuses and territories for every individual
 database_terr <- read.csv('1_Collating_dispersal_data/D_resident_territories_w_dates.csv')

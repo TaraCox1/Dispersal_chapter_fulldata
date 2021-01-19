@@ -65,13 +65,16 @@ new_terri_loc %<>% rename(DisperseTerritory = TerritoryID,
 
 
 #...Then to obtain natal territory location (for the field period bird was seen in their new territory)
-t_location_final %<>% rename(NatalTerritory = TerritoryID)
+t_location_final %<>% rename(NatalTerritory = TerritoryID, 
+                             NatalTerritorySize = DisperseTerritorySize)
 
 
 both_terri_loc <- merge(t_location_final, new_terri_loc, by=c('NatalTerritory', 'FieldPeriodID'), all.y = TRUE)
 
-"NatalTerrEasting" -> names(both_terri_loc)[names(both_terri_loc) == "Easting"] 
-"NatalTerrNorthing" -> names(both_terri_loc)[names(both_terri_loc) == "Northing"] 
+
+
+both_terri_loc %<>% rename(NatalTerrEasting = Easting,
+                           NatalTerrNorthing = Northing)
 
 
 
@@ -79,19 +82,21 @@ both_terri_loc <- merge(t_location_final, new_terri_loc, by=c('NatalTerritory', 
 
 # Repeat for FP prior dispersal -------------------------------------------
 #...As well as the location of the dispersal territory the season prior to dispersal
-t_location_final <- t_location_final %>%
+t_location_final %<>%
   rename(LastFPIDNatal = FieldPeriodID,
          NatalTerrEastingPRIOR = Easting,
-         NatalTerrNorthingPRIOR = Northing)
+         NatalTerrNorthingPRIOR = Northing,
+         NatalTerritorySizePRIOR = NatalTerritorySize)
 
 
 natal_terri_loc.PRIOR <- merge(t_location_final, both_terri_loc, by= c('NatalTerritory', 'LastFPIDNatal'), all.y = TRUE)
 
 
-t_location_final <- t_location_final %>%
+t_location_final %<>%
   rename(DisperseTerritory = NatalTerritory,
          DisperseTerrEastingPRIOR = NatalTerrEastingPRIOR,
-         DisperseTerrNorthingPRIOR = NatalTerrNorthingPRIOR)
+         DisperseTerrNorthingPRIOR = NatalTerrNorthingPRIOR,
+         DisperseTerritorySizePRIOR = NatalTerritorySizePRIOR)
 
 
 both_terri_loc.PRIOR <- merge(t_location_final, natal_terri_loc.PRIOR, by= c('DisperseTerritory', 'LastFPIDNatal'), all.y = TRUE)
@@ -114,12 +119,18 @@ terri.location$NatalTerrEasting <-
 terri.location$NatalTerrNorthing <- 
   ifelse(is.na(terri.location$NatalTerrNorthing), terri.location$NatalTerrNorthingPRIOR, terri.location$NatalTerrNorthing)
 
+terri.location$NatalTerritorySize <- 
+  ifelse(is.na(terri.location$NatalTerritorySize), terri.location$NatalTerritorySizePRIOR, terri.location$NatalTerritorySize)
+
+
 terri.location$DisperseTerrEasting <- 
   ifelse(is.na(terri.location$DisperseTerrEasting), terri.location$DisperseTerrEastingPRIOR, terri.location$DisperseTerrEasting)
 
 terri.location$DisperseTerrNorthing <- 
   ifelse(is.na(terri.location$DisperseTerrNorthing), terri.location$DisperseTerrNorthingPRIOR, terri.location$DisperseTerrNorthing)
 
+terri.location$DisperseTerritorySize <- 
+  ifelse(is.na(terri.location$DisperseTerritorySize), terri.location$DisperseTerritorySizePRIOR, terri.location$DisperseTerritorySize)
 
 
 # Calculate distance between territories ----------------------------------
@@ -134,7 +145,7 @@ disperse.dist <- terri.location
 
 disperse.dist$Distance <- sqrt((disperse.dist$DisperseTerrNorthing - disperse.dist$NatalTerrNorthing)^2 + (disperse.dist$DisperseTerrEasting - disperse.dist$NatalTerrEasting)^2)
 
-disperse.dist
+
 
 
 
@@ -157,18 +168,6 @@ disperse.dist
 
 
 
-
-
-# Add natal and new territory size ----------------------------------------
-
-
-
-
-
-
-
-
-
 # Double check, plot & save -----------------------------------------------
 
 #Check whether any territories are missing distance calculations 
@@ -180,7 +179,7 @@ hist(disperse.dist$Distance)
 
 
 #Save
-final <- subset(disperse.dist, select = c('BirdID', 'Distance'))
+final <- subset(disperse.dist, select = c('BirdID', 'Distance', 'NatalTerritorySize', 'DisperseTerritorySize'))
 
 write.csv(final, '9_Dispersal_distance/Dispersal_distance.csv', row.names = FALSE)
 

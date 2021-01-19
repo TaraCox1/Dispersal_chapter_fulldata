@@ -76,10 +76,11 @@ winter.2020 <- winter.db[(winter.db$Year == 2020),]
 winter.2020$Year <- as.factor(winter.2020$Year)
 db.ins.fp <- rbind.data.frame(db.ins.fp, winter.2020)
 
-insect <- db.ins.fp
-insect <- rename(insect, c("InsectDensity" = "MeanInsects2"))
-insect <- rename(insect, c("LastFPIDNatalYear" = "Year"))
-insect <- insect[c(3,4)]
+insect <- db.ins.fp %>%
+          rename(InsectDensity = MeanInsects2) %>%
+          rename(LastFPIDNatalYear = Year) %>%
+          select(LastFPIDNatalYear, InsectDensity)
+
 
 
 #Data are also missing for winter+summer 2001 and 2002
@@ -88,7 +89,7 @@ insect <- insect[c(3,4)]
 #Will have to leave NAs
 
 
-# Merge with personality data ---------------------------------------------
+# Merge with dispersal data ---------------------------------------------
 
 
 #First need dispersal data 
@@ -97,7 +98,7 @@ disp_philo <- read.csv("2_Identifying_dispersers_and_philopatrics/disp_and_philo
 
 
 #Correct format
-disp_philo$LastFPIDNatalPeriodStart <- as.Date(disp_philo$LastFPIDNatalPeriodStart, "%Y-%m-%d")
+disp_philo$LastFPIDNatalPeriodStart <- as.Date(disp_philo$LastFPIDNatalPeriodStart, '%d/%m/%Y')
 
 #Include only month
 disp_philo$LastFPIDNatalYear <- as.numeric(format(disp_philo$LastFPIDNatalPeriodStart, "%Y"))
@@ -113,4 +114,4 @@ insect.density <- merge(disp_philo.simp, insect, by=c('LastFPIDNatalYear'), all.
 
 
 
-write.csv(insect.density, "Insect_density.csv", row.names = FALSE)
+write.csv(insect.density, "10_Insect_abundance/Insect_density.csv", row.names = FALSE)

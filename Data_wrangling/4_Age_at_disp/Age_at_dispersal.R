@@ -320,6 +320,10 @@ older_disp_phi$DispersalYear <- as.numeric(format(older_disp_phi$DispersalDate,'
 older_disp_phi$BirthYear1 <- as.numeric(format(older_disp_phi$BirthDate1,'%Y'))
 older_disp_phi$BirthYear2 <- as.numeric(format(older_disp_phi$BirthDate2,'%Y'))
 
+older_disp_phi %<>% select(BirdID, Age_at_disp1, Age_at_disp2, DispersalDate, BirthDate1, BirthDate2, Reached_min_age_1, Reached_min_age_2)
+
+
+
 
 write.csv(older_disp_phi, '4_Age_at_disp/Age_at_dispersal_older.csv')
 
@@ -331,15 +335,33 @@ write.csv(older_disp_phi, '4_Age_at_disp/Age_at_dispersal_older.csv')
 
 #File including all philopatrics, regardless of age last seen
 all <- birth_est_disp
-all %<>% select('BirdID', 'Age_at_disp1', 'Age_at_disp2', 'DispersalDate', 'BirthDate1', 'BirthDate2')
+all %<>% select(BirdID, Age_at_disp1, Age_at_disp2, DispersalDate, BirthDate1, BirthDate2, Disperse)
+
+
+#Add whether they reached min age at dispersal
+min_age <- older_disp_phi %>% select(BirdID, Reached_min_age_1, Reached_min_age_2)
+all_min_age <- merge(all, min_age, by = c('BirdID'), all.x = TRUE)
+
+all_min_age2 <- all_min_age %>% 
+  mutate(Reached_min_age_1 = ifelse(is.na(Reached_min_age_1), 0, Reached_min_age_1)) %>%
+  mutate(Reached_min_age_1 = ifelse(Disperse == 1, NA, Reached_min_age_1)) %>%
+  mutate(Reached_min_age_2 = ifelse(is.na(Reached_min_age_2), 0, Reached_min_age_2)) %>%
+  mutate(Reached_min_age_2 = ifelse(Disperse == 1, NA, Reached_min_age_2))
+  
+
+
 
 
 #Add year of birth and year of dispersal as they are required as fixed and random effects for model
-all$DispersalDate <- as.Date(all$DispersalDate, "%Y-%m-%d") 
-all$DispersalYear <- as.numeric(format(all$DispersalDate,'%Y'))
-all$BirthYear1 <- as.numeric(format(all$BirthDate1,'%Y'))
-all$BirthYear2 <- as.numeric(format(all$BirthDate2,'%Y'))
+all_min_age2$DispersalDate <- as.Date(all_min_age2$DispersalDate, "%Y-%m-%d") 
+all_min_age2$DispersalYear <- as.numeric(format(all_min_age2$DispersalDate,'%Y'))
+all_min_age2$BirthYear1 <- as.numeric(format(all_min_age2$BirthDate1,'%Y'))
+all_min_age2$BirthYear2 <- as.numeric(format(all_min_age2$BirthDate2,'%Y'))
+
+
+all_min_age3 <- all_min_age2 %>% select(-c(DispersalDate, Disperse))
+
 
 #Save
-write.csv(all, '4_Age_at_disp/Age_at_dispersal_all.csv', row.names = FALSE)
+write.csv(all_min_age3, '4_Age_at_disp/Age_at_dispersal_all.csv', row.names = FALSE)
 
