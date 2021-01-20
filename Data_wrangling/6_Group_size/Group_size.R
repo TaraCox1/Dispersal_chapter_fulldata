@@ -8,9 +8,8 @@ rm(list = ls())
 getwd()
 setwd("Data_wrangling")
 
-library(plyr)
-library(dplyr)
-library(ggplot2)
+library(tidyverse)
+library(magrittr)
 
 
 
@@ -19,7 +18,7 @@ library(ggplot2)
 
 #Read in group size data, check and correct any variables
 breed_groups <- read.csv('DB_tables_queries/sys_BreedGroupLocation+Status.csv')
-str(breed_groups )
+str(breed_groups)
 
 breed_groups$BirdID <- factor(breed_groups$BirdID)
 breed_groups$FieldPeriodID <- factor(breed_groups$FieldPeriodID)
@@ -27,23 +26,38 @@ breed_groups$TerritoryID <- factor(breed_groups$TerritoryID)
 
 
 #Remove vague status' (SEEN1 etc.)
-breed_groups %<>%
+bg_core <- breed_groups %>%
   filter(!(Status == "SEEN1" | Status == "SEEN2" | Status == "U" |
-           Status == "NS" | Status == "NSA" | Status == "EGG" |
-           Status == "FLOAT" | Status == "FLOAT" | Status == "XF" | Status == "BrU"))
+           Status == "NS" | Status == "EGG" | Status == "FLOAT" |
+            Status == "XF" | Status == "BrU" | Status == "NSA"))
+
+
+#Check NSAs - if bird has >1 NSA status within a FPID, then remove both rows. I
+bg_NSA <- breed_groups %>% 
+              filter(Status == "NSA") %>% 
+              filter(!(TerritoryID == -3)) %>%
+              group_by(BirdID, FieldPeriodID) %>%
+              filter(!(n()>1)) #remove birds that have >1 row within the same field period i.e. >1 NSA status within a FP
+  
+
+#Rbind NSAs with core status list 
+bg_all <- rbind(breed_groups, bg_NSA)
+
 
 
 #Find group size corresponding to field period prior dispersal by counting the number of entries per group per FPID
-breed_groups_count <- ddply(breed_groups, .(breed_groups$FieldPeriodID, breed_groups$TerritoryID), nrow)
-names(breed_groups_count) <- c("FieldPeriodID", "TerritoryID", "GroupSize")
+bg_count <- bg_all %>%
+        group_by(FieldPeriodID, TerritoryID) %>%
+        summarise(GroupSize.all = n()) 
 
 
 #Find group size WITHOUT individuals <6months i.e. CH, FL & OFL
-breed_groups_old <- breed_groups %>% filter(!(Status == "CH" | Status == "FL" | Status == "OFL"))
+bg_countold <- bg_all %>%
+          filter(!(Status == "CH" | Status == "FL" | Status == "OFL")) %>% 
+          group_by(FieldPeriodID, TerritoryID) %>%
+          summarise(GroupSize.old = n()) 
 
 
-breed_groups_countold <- ddply(breed_groups_old, .(breed_groups_old$FieldPeriodID, breed_groups_old$TerritoryID), nrow)
-names(breed_groups_countold) <- c("FieldPeriodID", "TerritoryID", "GroupSize")
 
 
 
@@ -60,20 +74,18 @@ disp_philo <- read.csv("2_Identifying_dispersers_and_philopatrics/disp_and_philo
 
 #Change name from FieldPeriodID in df BreedGroupsCount/Old to LastFPIDNatal so it can merge with dispersal + philo data
 #Rename TerritoryID to NatalTerritory, as we want to know the group size of the natal territory 
-breed_groups_count %<>% rename(LastFPIDNatal = FieldPeriodID, NatalTerritory = TerritoryID)
-breed_groups_countold %<>% rename(LastFPIDNatal = FieldPeriodID, NatalTerritory = TerritoryID)
+bg_count %<>% rename(LastFPIDNatal = FieldPeriodID, NatalTerritory = TerritoryID)
+bg_countold %<>% rename(LastFPIDNatal = FieldPeriodID, NatalTerritory = TerritoryID)
 
 
 
 #Merge with dispersal/philo data for:
 #Group size with all individuals
-disp_philo_count <- merge(disp_philo, breed_groups_count, by=c("LastFPIDNatal", "NatalTerritory"),all.x=TRUE)
-disp_philo_count %<>% rename(GroupSize.all = GroupSize)
-
+disp_philo_count <- merge(disp_philo, bg_count, by=c("LastFPIDNatal", "NatalTerritory"),all.x=TRUE)
 
 #Group size with only older (>6month) individuals
-disp_philo_countold <- merge(disp_philo_count, breed_groups_countold, by=c("LastFPIDNatal", "NatalTerritory"),all.x=TRUE)
-disp_philo_countold %<>% rename(GroupSize.old = GroupSize)
+disp_philo_countold <- merge(disp_philo_count, bg_countold, by=c("LastFPIDNatal", "NatalTerritory"),all.x=TRUE)
+
 
 
 
@@ -92,19 +104,17 @@ disp_philo_countold[disp_philo_countold$BirdID==6884, "GroupSize.all"] <- NA
 
 #Repeat the above
 #Change name from FieldPeriodID in df BreedGroupsCount/Old to SecondLastFPIDNatal so it can merge with personality data
-breed_groups_count %<>% rename(SecondLastFPIDNatal = LastFPIDNatal)
-breed_groups_countold %<>% rename(SecondLastFPIDNatal = LastFPIDNatal)
+bg_count %<>% rename(SecondLastFPIDNatal = LastFPIDNatal, GroupSize.all.2 = GroupSize.all)
+bg_countold %<>% rename(SecondLastFPIDNatal = LastFPIDNatal, GroupSize.old.2 = GroupSize.old)
 
 
 #Merge with dispersal/philo data for:
 #Group size with all individuals
-disp_philo_count_2 <- merge(disp_philo_countold, breed_groups_count, by=c("SecondLastFPIDNatal", "NatalTerritory"), all.x=TRUE)
-disp_philo_count_2 %<>% rename(GroupSize.all.2 = GroupSize)
-
+disp_philo_count_2 <- merge(disp_philo_countold, bg_count, by=c("SecondLastFPIDNatal", "NatalTerritory"), all.x=TRUE)
 
 #Group size with only older (>6month) individuals
-disp_philo_countold_2 <- merge(disp_philo_count_2, breed_groups_countold, by=c("SecondLastFPIDNatal", "NatalTerritory"), all.x=TRUE)
-disp_philo_countold_2 %<>% rename(GroupSize.old.2 = GroupSize)
+disp_philo_countold_2 <- merge(disp_philo_count_2, bg_countold, by=c("SecondLastFPIDNatal", "NatalTerritory"), all.x=TRUE)
+
 
 
 # If group size for FPID prior dispersal = NA, use FPID 2 seasons  --------
@@ -146,7 +156,7 @@ group_size[group_size$BirdID==5596, "GroupSize.old"] <- 4
 #However, because they were never observed in the territory, they are not included in the group size calculations (as they are based off of the status list)
 #Is there a way to check whether the focal individual is included in the group size list without doing it manually?
 
-
+#Manual edit for now (note: these birds are not added to group size OLD because they were all CH-OFL status)
 group_size <- group_size %>% 
   mutate(GroupSize.all=ifelse(BirdID==6014 | BirdID==5573 | BirdID==3453 | BirdID==1729 | BirdID==1821 | BirdID==5605 | 
                                 BirdID==5842 | BirdID==6030 | BirdID==6029 | BirdID==6196 | BirdID==6546 | BirdID==6313 |
