@@ -26,10 +26,11 @@ breed_groups$TerritoryID <- factor(breed_groups$TerritoryID)
 
 
 #Remove vague status' (SEEN1 etc.)
+#Note: I have not removed XF birds as XF indicates a chick was moved INTO the territory from another (rather than out of the territory)
 bg_core <- breed_groups %>%
   filter(!(Status == "SEEN1" | Status == "SEEN2" | Status == "U" |
            Status == "NS" | Status == "EGG" | Status == "FLOAT" |
-            Status == "XF" | Status == "BrU" | Status == "NSA"))
+          Status == "BrU" | Status == "NSA"))
 
 
 #Check NSAs - if bird has >1 NSA status within a FPID, then remove both rows. I
@@ -53,7 +54,7 @@ bg_count <- bg_all %>%
 
 #Find group size WITHOUT individuals <6months i.e. CH, FL & OFL
 bg_countold <- bg_all %>%
-          filter(!(Status == "CH" | Status == "FL" | Status == "OFL")) %>% 
+          filter(!(Status == "CH" | Status == "FL" | Status == "OFL" | Status == "XF")) %>% 
           group_by(FieldPeriodID, TerritoryID) %>%
           summarise(GroupSize.old = n()) 
 
