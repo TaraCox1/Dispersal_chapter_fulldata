@@ -7,6 +7,7 @@
 #     iii) Floaters dispersal 
 #c) Add natal territory data for dispersers and philopatrics, including:
 #     i) Last field period spent in natal territory (plus period start+end)
+#     (Note: LastFPIDNatal will be the same as disperse FPID for birds that dispersed WITHIN field period. For birds that dispersed BETWEEN field periods, this will be the field period prior to disperse FP)
 #     ii) Second last field period in natal territory (needed for future fixed effects scripts where no data were collected during last season in natal terr) (plus period start+end)
 #     iii) Natal territory ID
 #     iv) Last known status in natal territory 
@@ -214,8 +215,7 @@ write.csv(natal, '2_Identifying_dispersers_and_philopatrics/Natal_terr.csv', row
 str(natal)
 
 natal$BirdID <- as.factor(natal$BirdID)
-#natal$NatalTerritory <- as.factor(natal$NatalTerritory)
-#natal <- subset(natal, select = c(BirdID, NatalTerritory))
+
 
 
 #Add natal territory data to sightings of dispersers df
@@ -224,37 +224,35 @@ sightings_disps_nat <- merge(natal, sightings_disps, by=c('BirdID'))
 
 #Subset the df to individuals that have been observed in their natal territory during the dispersal FPID
 #This indicates they did not disperse between field periods
-seen_natal <- subset(sightings_disps_nat, NatalTerritory == SightingTerritoryID)
+seen_natal <- sightings_disps_nat %>% filter(NatalTerritory == SightingTerritoryID) 
 
 
 #Take the latest date an individual was seen on their natal territory during the dispersal FPID
 last_seen_natal <- seen_natal %>% 
   group_by(BirdID) %>% 
   slice(which.max(Date)) %>%
-  rename(Last.seen.on.natal.terr = Date)
+  rename(Last.seen.on.natal.terr = Date) %>%
+  mutate(BirdID = as.factor(BirdID)) %>%
+  select(!(SightingTerritoryID))
 
-last_seen_natal$BirdID <- as.factor(last_seen_natal$BirdID)
-
-last_seen_natal <- subset(last_seen_natal, select = -c(SightingTerritoryID))
 
 
 #Take the first date an individual was seen in their new territory during the dispersal FPID
-first_seen_new <- subset(last_seen_natal, select = c(BirdID))
+first_seen_new <- last_seen_natal %>% select(BirdID)
 
 first_seen_new <- merge(first_seen_new, sightings_disps_nat)
 
-first_seen_new <- subset(first_seen_new, TerritoryID == SightingTerritoryID)
-
-first_seen_new <- first_seen_new %>% 
+first_seen_new2 <- first_seen_new %>% 
+  filter(TerritoryID == SightingTerritoryID) %>%
   group_by(BirdID) %>% 
   slice(which.min(Date)) %>%
-  rename(First.seen.on.new.terr = Date)
+  rename(First.seen.on.new.terr = Date) %>%
+  select(-(SightingTerritoryID))
 
-first_seen_new <- subset(first_seen_new, select = -c(SightingTerritoryID))
 
 
 #Merge the two 
-seen_natal_all <- merge(last_seen_natal, first_seen_new, 
+seen_natal_all <- merge(last_seen_natal, first_seen_new2, 
                         select=c('BirdID', 'NatalTerritory', 'FieldPeriod', 'TerritoryID',
                                  'Status', 'PeriodStart', 'PeriodEnd', 'Disperse'), all = TRUE)
 
@@ -265,8 +263,10 @@ seen_natal_all$DispersalDate <- seen_natal_all$Last.seen.on.natal.terr +
   floor((seen_natal_all$First.seen.on.new.terr-seen_natal_all$Last.seen.on.natal.terr)/2)
 
 
-
-
+seen_natal_all$LastFPIDNatal <- seen_natal_all$FieldPeriodID
+seen_natal_all$DispersePeriodStart <- seen_natal_all$PeriodStart
+seen_natal_all$DispersePeriodEnd <- seen_natal_all$PeriodEnd
+seen_natal_all %<>% rename(DisperseFPID = FieldPeriodID)
 
 
 ##########################
@@ -309,12 +309,9 @@ seen_natal_all <- seen_natal_all[!(seen_natal_all$Status=="FLOAT"),]
 #As we cannot determine an exact date of dispersal, we will need to find the median date between the field period at the natal and new territory
 #Anti-join to determine which individuals were not seen in their natal territory
 
-seen_natal_ID <- subset(seen_natal_all, select = c(BirdID))
+seen_natal_ID <- seen_natal_all %>% select(BirdID)
 
-#There should be a line of code that merges seen_natal_all with floaters to ensure floaters aren't included following the below antijoin?
-
-(between <- anti_join(disp_terr, seen_natal_ID, by='BirdID') %>% select(BirdID))
-
+between <- anti_join(disp_terr, seen_natal_ID, by='BirdID') %>% select(BirdID)
 
 
 #Merge df of 'between' individuals with their natal territory and dispersal data
@@ -334,12 +331,7 @@ between_2$BirdID <- as.factor(between_2$BirdID)
 
 
 #Copy df created earlier in section 3 'terr_datesnoXF', it contains every territory an individual has ever resided in
-status <- terr_datesnoXF
-
-str(status)
-
-
-status <- status %>% 
+status <- terr_datesnoXF %>% 
   dplyr::rename(StatusTerritoryID = TerritoryID)
 
 
@@ -347,32 +339,24 @@ status <- status %>%
 between_statuses <- merge(between_2, status, by = c('BirdID'))
 
 
-#Remove any statuses obtained after the dispersal field period
-between_pre_statuses <- between_statuses[!(between_statuses$PeriodEnd>between_statuses$DispersePeriodStart),]
-#between_pre_statuses$BirdID <- as.factor(between_pre_statuses$BirdID)
-
-
-#Identify FP individual was last seen in natal territory
-#Convert territory IDs to characters as below script does not work for factors with different numbers of levels
-between_pre_statuses$NatalTerritory <- as.character(between_pre_statuses$NatalTerritory)
-between_pre_statuses$StatusTerritoryID <- as.character(between_pre_statuses$StatusTerritoryID)
-between_pnatal_statuses <- subset(between_pre_statuses, NatalTerritory == StatusTerritoryID)
-
-
-#Identify the latest date an individual was seen to have a status in their natal territory
-latest_between_natal_statuses <- between_pnatal_statuses %>% 
-  group_by(BirdID) %>% 
-  slice(which.max(PeriodEnd))
-
-
+#I want to remove any statuses obtained after the dispersal field period
+#However, some birds had a status in their natal territory during the same field period they dispersed/gained a status in their new territory
+#This is because the pedigree provided a birth FPID (i.e. CH status) during the same field period the database provided a status in their new territory
+#In order to keep these individuals, firstly remove any rows where StatusTerritoryID and FieldPeriodID = DisperseTerritoryID and DisperseFPID = FieldPeriodID
+#Then remove any statuses gained after disperse fpid
+between_FP_dispersal <- between_statuses %>%
+                            filter(!(StatusTerritoryID == DisperseTerritoryID & DisperseFPID == FieldPeriodID)) %>%
+                            filter(!(PeriodStart > DispersePeriodEnd)) %>%
+                            rename(StatusNatal = Status, LastFPIDNatal = FieldPeriodID) %>%
+                            filter(NatalTerritory == StatusTerritoryID) %>%
+                            group_by(BirdID) %>% 
+                            slice(which.max(PeriodEnd)) %>% #select the latest fieldperiod, this is the last time bird was seen in  their natal territory
+                            filter(!(DisperseStatus == "FLOAT")) #remove floaters as they will have dispersal date calculated differently below
+  
+  
 #Calculate midpoint between PeriodEnd and DispersePeriodStart, this will be the dispersal date
-latest_between_natal_statuses$DispersalDate <- latest_between_natal_statuses$PeriodEnd + 
-  floor((latest_between_natal_statuses$DispersePeriodStart-latest_between_natal_statuses$PeriodEnd)/2)
-
-
-#Remove incorrect floater calculations
-latest_between_natal_statuses <- latest_between_natal_statuses[!(latest_between_natal_statuses$DisperseStatus=='FLOAT'),]
-
+between_FP_dispersal$DispersalDate <- between_FP_dispersal$PeriodEnd + 
+  floor((between_FP_dispersal$DispersePeriodStart-between_FP_dispersal$PeriodEnd)/2)
 
 
 
@@ -387,19 +371,34 @@ latest_between_natal_statuses <- latest_between_natal_statuses[!(latest_between_
 #First, identify the last FPID an individual was a floater
 
 #Create list of floaters
-FLOAT_IDs_1 <- subset(FLOAT_1, select = c('BirdID'))
-FLOAT_IDs_2 <- between_2[(between_2$DisperseStatus == 'FLOAT'),]
-FLOAT_IDs_2 <- subset(FLOAT_IDs_2, select = c('BirdID'))
+FLOAT_IDs <- between_2 %>%
+                filter(DisperseStatus == "FLOAT") %>% 
+                select(BirdID, NatalTerritory, DispersePeriodEnd) 
 
-FLOAT_IDs <- rbind(FLOAT_IDs_1, FLOAT_IDs_2)
+
+
+#Determine LastFPID prior to dispersal
+float_lastfpidnatal <- merge(FLOAT_IDs, terr_datesnoXF, by = c('BirdID'))
+float_lastfpidnatal2 <- float_lastfpidnatal %>%
+                filter(NatalTerritory == TerritoryID) %>%
+                filter(!(DispersePeriodEnd < PeriodEnd)) %>%
+                group_by(BirdID) %>%
+                slice(which.max(PeriodEnd)) %>%
+                select(!(DispersePeriodEnd | TerritoryID)) %>%
+                rename(LastFPIDNatal = FieldPeriodID, 
+                       LastFPIDNatalPeriodStart = PeriodStart,
+                       LastFPIDNatalPeriodEnd = PeriodEnd, 
+                       StatusNatal = Status)
 
 
 #Merge with every territory they have resided in, then subset to only when they were floaters
-float_terrs <- merge(FLOAT_IDs, terr_datesnoXF, select = c('BirdID'))
+float_terrs <- merge(float_lastfpidnatal2, terr_datesnoXF, select = c('BirdID'))
 float_FPIDs <- float_terrs[(float_terrs$Status == "FLOAT"),]
 
+
 #Subset to last season individual was a floater
-float_FPIDs <- float_FPIDs %>% 
+float_FPIDs <- float_terrs %>% 
+  filter(Status == "FLOAT") %>%
   group_by(BirdID) %>% 
   arrange(PeriodStart, .by_group = TRUE) %>%
   slice(which.max(PeriodEnd)) %>%
@@ -438,9 +437,6 @@ float_dispersers <- subset(post_float_FPIDs, select = -c(FloatFPID,
                                                          FloatPeriodStart, FloatPeriodEnd, FPID.prior.or.after.floating))
 
 
-#Add disperse=1 column
-float_dispersers$Disperse = 1
-
 
 
 
@@ -448,32 +444,42 @@ float_dispersers$Disperse = 1
 # Estimate dispersal date pt. 5 - merge -----------------------------------
 
 #Format columns of the precise df 'seen_natal_all', estimate df 'latest_between_natal_statuses' and floater df 'float_dispersrs' to match, so I can rbind them
-float_dispersers <- float_dispersers[, c(1, 2, 3, 4, 5, 6, 8, 7)]
 
-seen_natal_all <- seen_natal_all[, c(1, 4, 5, 3, 6, 7, 8, 11)]
+float_dispersers2 <- float_dispersers %>% 
+                      rename(DisperseTerritoryID = TerritoryID,
+                             DisperseFPID = FieldPeriodID,
+                             DisperseStatus = Status,
+                             DispersePeriodStart = PeriodStart,
+                             DispersePeriodEnd = PeriodEnd) %>%
+                      mutate(Disperse = 1, Method = "EF") #add column to indicate dispersal date calculated using estimate floater method
+                    
 
-latest_between_natal_statuses <- latest_between_natal_statuses[, c(1, 3, 4, 5, 6, 7 , 8, 14)]
-
-latest_between_natal_statuses <- latest_between_natal_statuses %>% 
-  dplyr::rename(FieldPeriodID = DisperseFPID,
-                Status = DisperseStatus,
-                PeriodStart = DispersePeriodStart,
-                PeriodEnd = DispersePeriodEnd,
-                TerritoryID = DisperseTerritoryID)
+between_FP_dispersal2 <- between_FP_dispersal %>%
+                                   select(-(StatusTerritoryID)) %>% 
+                                    rename(LastFPIDNatalPeriodStart = PeriodStart,
+                                           LastFPIDNatalPeriodEnd = PeriodEnd) %>%
+                                    mutate(Method = "E") #add column to indicate dispersal date calculated using estimate method
 
 
-#Add column to indicate whether dispersal date was calculated using precise 'P' or estimate 'E' method
-seen_natal_all$Method = "P"
-latest_between_natal_statuses$Method = "E"
-float_dispersers$Method = "EF"
+seen_natal_all2 <- seen_natal_all %>% 
+                    select(-(Last.seen.on.natal.terr | First.seen.on.new.terr)) %>% 
+                    rename(DisperseStatus = Status,
+                           LastFPIDNatalPeriodStart = PeriodStart,
+                           LastFPIDNatalPeriodEnd = PeriodEnd,
+                           DisperseTerritoryID = TerritoryID) %>%
+                    mutate(StatusNatal = NA, Method = "P") #add column to indicate dispersal date calculated using precise method
+
 
 
 #rbind
-dispersal_dates <- rbind(seen_natal_all, latest_between_natal_statuses)
+dispersal_dates <- rbind(seen_natal_all2, between_FP_dispersal2, float_dispersers2)
+
 
 
 #Are there any missing that were in the original list of dispersers
-where_dey_go <- anti_join(float_dispersers, disp_terr, dispersal_dates, by='BirdID') %>% select(BirdID)
+#Should include a list of 9 individuals that were floaters before going missing (i.e. floated but didn't disperse because they died)
+#Should include BirdIDs: 5343, 5594, 5781, 5786, 5907, 6025, 6046, 6137, 6882
+where_dey_go <- anti_join(disp_terr, dispersal_dates, by='BirdID') %>% select(BirdID)
 where_dey_go
 
 
@@ -507,45 +513,7 @@ dispersal_dates$DispersalMonth2 <- ifelse(dispersal_dates$DispersalMonth == "Jan
 
 
 
-# Add natal territory details for dispersers ------------------------------
-
-## First, identify FPID last seen in natal territory 
-all_status <- terr_datesnoXF %>%
-  rename(NatalTerritory = TerritoryID)
-
-all_status_natal <- merge(all_status, natal, by = c('BirdID', 'NatalTerritory'))
-
-last_status_natal <- all_status_natal %>%
-  group_by(BirdID) %>%
-  arrange(PeriodEnd, .by_group = TRUE) %>%
-  slice(which.max(PeriodEnd)) %>%
-  rename(LastFPIDNatal = FieldPeriodID,
-         LastFPIDNatalPeriodStart = PeriodStart,
-         LastFPIDNatalPeriodEnd = PeriodEnd,
-         NatalStatus = Status)
-
-
-#Subset to just dispersers
-final_status_natal_disp <- merge(dispersal_dates, last_status_natal, by = c('BirdID'), all.x = TRUE)
-
-
-#Group levels and provide a code to dominant (1) or subordinates (2)
-#Note - I have placed budder (B) into subordinate category as the budding did not appear successful (more likely a budding attempt)
-#It is not shown on any of the new maps and not given a new territory ID e.g. 4.1. Therefore, classed as subordinate in their natal territory (4)
-final_status_natal_disp$NatalStatus2 <- ifelse(final_status_natal_disp$NatalStatus == "BrM",1,
-                                               ifelse(final_status_natal_disp$NatalStatus == "BrF",1,
-                                                      ifelse(final_status_natal_disp$NatalStatus == "TBRM",1,2))) 
-
-
-#Identify whether the individual dispersed and gained a dominant or subordinate position
-final_status_natal_disp$Status2 <- ifelse(final_status_natal_disp$Status == "FLOAT",3,
-                                          ifelse(final_status_natal_disp$Status == "H",2,
-                                                 ifelse(final_status_natal_disp$Status == "AB",2, 
-                                                        ifelse(final_status_natal_disp$Status == "ABX",2,1))))
-
-
-#Subset to only individuals that have dispersed from subordinate breeding positions, as dispersal from a dom position is breeding, rather than natal, dispersal
-final_status_disp_dom <- final_status_natal_disp[(final_status_natal_disp$NatalStatus2==2),]
+# Identify second field period prior to dispersal ------------------------------
 
 
 #Add second last FPID a disperser was in their natal territory
@@ -557,7 +525,8 @@ FPID <- read.csv('DB_tables_queries/tblFieldPeriodIDs.csv')
 #As no island census was conducted these seasons (translocation seasons)
 FPID_CN <- FPID %>%
   filter((Island == "CN")) %>% 
-  filter(!(FieldPeriodID == "110" | FieldPeriodID == "29" | FieldPeriodID == "74" | FieldPeriodID == "32")) %>%
+  filter(!(FieldPeriodID == "110" | FieldPeriodID == "74")) %>%
+  # filter(!( FieldPeriodID == "29" | FieldPeriodID == "32")) %>%
   select(c(FieldPeriodID, PeriodStart))
 
 FPID_CN$PeriodStart <- as.Date(FPID_CN$PeriodStart , "%d/%m/%Y")
@@ -584,13 +553,15 @@ FPID_CN_code <- FPID_CN_code %>%
          LastFPIDCode = FPIDCode)
 
 
-final_status_disp_dom <- merge(final_status_disp_dom, FPID_CN_code, by = c('LastFPIDNatal'))
+#Merge
+dispersal_dates <- merge(dispersal_dates, FPID_CN_code, by = c('LastFPIDNatal'), all.x = TRUE)
+
 
 
 #Create new column that will include FPIDCode for the second last season seen in natal terr
 #Do this by copying the dispersal FPID and subtracting 1
-SecondLastFPIDCode <- final_status_disp_dom$LastFPIDCode - 1
-final_status_disp_dom <- cbind(final_status_disp_dom, SecondLastFPIDCode)
+SecondLastFPIDCode <- dispersal_dates$LastFPIDCode - 1
+final_status_disp_dom <- cbind(dispersal_dates, SecondLastFPIDCode)
 
 
 #Relabel the FPID dataframe from original 'FPIDCode' and 'LastNatalFPID' to match the column headings 
@@ -623,6 +594,69 @@ final_status_disp_dom <- select(final_status_disp_dom, -c('LastFPIDCode', 'Secon
 
 
 
+# Fill missing StatusNatal for precise dispersers -------------------------
+
+
+#This is for birds that have last seen natal and first seen new territory dates within the same field period
+#Their LastFPIDNatal is the same field period as DisperseFPID (as they dispersed within the same field period)
+#If we used their status for LastFPIDNatal, it would be the status they received in their new territory
+#Therefore, we need to use the status for SecondLastFPIDNatal
+
+status_min <- terr_datesnoXF %>%
+               rename(SecondLastFPIDNatal = FieldPeriodID,
+                   NatalTerritory = TerritoryID,
+                   StatusSecondFP = Status) %>%
+               group_by(BirdID, SecondLastFPIDNatal, NatalTerritory) %>%
+               mutate(StatusCode = ifelse(StatusSecondFP == "CH", 1, 
+                             ifelse(StatusSecondFP == "FL", 2,
+                                    ifelse(StatusSecondFP == "OFL", 3, 4)))) %>%
+               slice(which.max(StatusCode)) %>% 
+               ungroup() %>%
+               select(!(StatusCode | SecondLastFPIDNatal))
+#Above if statement created as some birds have CH and FL/OFL status within the same fieldperiod - do not need both statuses, only the oldest
+
+
+dispersers_all_status <- merge(final_status_disp_dom, status_min, by =c('BirdID', 'NatalTerritory'), all.x = TRUE)
+
+dispersers_all_status %<>% group_by(BirdID) %>%
+                             slice(which.max(PeriodEnd)) %>%
+                             select(!(PeriodStart | PeriodEnd))
+
+dispersers_1 <- dispersers_all_status %>% 
+                  mutate(StatusNatal = ifelse(is.na(StatusNatal), StatusSecondFP, StatusNatal)) %>%
+                  select(-(StatusSecondFP))
+
+
+
+
+
+
+# Add codes for natal and dispers statuses --------------------------------
+
+
+
+#Group levels and provide a code to dominant (1) or subordinates (2)
+#Note - I have placed budder (B) into subordinate category as the budding did not appear successful (more likely a budding attempt)
+#It is not shown on any of the new maps and not given a new territory ID e.g. 4.1. Therefore, classed as subordinate in their natal territory (4)
+dispersal_natalstatus <- dispersers_1
+dispersal_natalstatus$NatalStatus2 <- ifelse(dispersal_natalstatus$StatusNatal == "BrM",1,
+                                               ifelse(dispersal_natalstatus$StatusNatal == "BrF",1,
+                                                      ifelse(dispersal_natalstatus$StatusNatal == "TBRM",1,2))) 
+
+
+#Identify whether the individual dispersed and gained a dominant or subordinate position
+dispersal_natalstatus$DisperseStatus2 <- ifelse(dispersal_natalstatus$DisperseStatus == "H",2,
+                                            ifelse(dispersal_natalstatus$DisperseStatus == "AB",2, 
+                                                 ifelse(dispersal_natalstatus$DisperseStatus == "ABX",2,1)))
+
+
+#Subset to only individuals that have dispersed from subordinate breeding positions, as dispersal from a dom position is breeding, rather than natal, dispersal
+final_status_disp_dom <- dispersal_natalstatus[(dispersal_natalstatus$NatalStatus2==2),]
+
+
+
+
+
 
 
 
@@ -643,7 +677,7 @@ philos.all <- terr_no_dups[!table(terr_no_dups$BirdID)[as.character(terr_no_dups
 
 
 #Remove any individuals that do not have a subordinate position as their first known status i.e. remove dominants 
-#This is because we don't have an accurate natal territory for these individuals 
+#This is because we use data (e.g. group size) for last FPID as subordinate, which these individuals won't have
 philos <- philos.all[!(philos.all$Status == "BrF" | philos.all$Status == "BrM"),]
 
 
@@ -822,26 +856,29 @@ philos.sorted$DispersalDate <- NA
 philos.sorted$DispersalDate <- as.Date(philos.sorted$DispersalDate, "%d/%m/%Y")
 philos.sorted$DispersalMonth <- NA
 philos.sorted$DispersalMonth2 <- NA
-philos.sorted$Status2 <- NA
-philos.sorted$FieldPeriodID <- NA
-philos.sorted$PeriodStart <- NA
-philos.sorted$PeriodStart <- as.Date(philos.sorted$PeriodStart, "%d/%m/%Y")
-philos.sorted$PeriodEnd <- NA
-philos.sorted$PeriodEnd <- as.Date(philos.sorted$PeriodEnd, "%d/%m/%Y")
-philos.sorted$TerritoryID <- NA
-philos.sorted$Status <- NA
+philos.sorted$DisperseStatus2 <- NA
+philos.sorted$DisperseStatus <- NA
+philos.sorted$DispersePeriodStart <- NA
+philos.sorted$DispersePeriodEnd <- NA
+philos.sorted$DispersePeriodEnd <- as.Date(philos.sorted$DispersePeriodEnd, "%d/%m/%Y")
+philos.sorted$DispersePeriodStart <- as.Date(philos.sorted$DispersePeriodStart, "%d/%m/%Y")
+philos.sorted$DisperseTerritoryID <- NA
+philos.sorted$DisperseFPID <- NA
 philos.sorted$NatalStatus <- NA
 philos.sorted$NatalStatus2 <- NA
+
+final_status_disp_dom %<>% 
+  rename(NatalStatus = StatusNatal)
 
 final_status_disp_dom$Inherit <- NA
 
 # Merge and save ----------------------------------------------------------
 
 #Merge philopatric and dispersal data
-disp_and_philo <- rbind(philos.sorted, final_status_disp_dom)
+disp_philo <- rbind(philos.sorted, final_status_disp_dom)
 
 
 #Save
-write.csv(disp_and_philo, "2_Identifying_dispersers_and_philopatrics/disp_and_philo.csv", row.names = FALSE)
+write.csv(disp_philo, "2_Identifying_dispersers_and_philopatrics/disp_and_philo.csv", row.names = FALSE)
  
 
