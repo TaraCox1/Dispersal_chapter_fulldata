@@ -4,10 +4,10 @@
 # Read in data ------------------------------------------------------------
 
 rm(list = ls())
-library("ggplot2")
-library("dplyr")
-library("lubridate")
-library("magrittr")
+
+library(tidyverse)
+library(lubridate)
+library(magrittr)
 
 getwd()
 setwd("Data_wrangling")
@@ -33,7 +33,7 @@ str(disp_philo)
 #Subset to dispersers
 disp_dates <- disp_philo %>%
   filter(Disperse == 1) %>%
-  select(c('BirdID', 'Disperse', 'DispersalDate', 'FieldPeriodID')) #select columns needed to calculate the difference between birth and disperse date
+  select(c('BirdID', 'Disperse', 'DispersalDate', 'DisperseFPID')) #select columns needed to calculate the difference between birth and disperse date
 
 
 #Add birth date
@@ -149,7 +149,9 @@ disp_nests_corr <- disp_nests_hatch2 %>%
                             BirdID == 5782 & NestNumber == 2 |
                             BirdID == 6018 & NestNumber == 1 | 
                             BirdID == 5498 & NestNumber == 2 |
-                            BirdID == 5530 & NestNumber == 1)) %>%
+                            BirdID == 5530 & NestNumber == 1 |
+                            BirdID == 5584 & NestID == 3349 |
+                            BirdID == 5837 & NestNumber == 2)) %>%
                    select(BirdID, HatchDateLatest) %>%
                    rename(BirthDate2 = HatchDateLatest)
                    
@@ -293,8 +295,8 @@ younger2 <- date_last_seen %>% filter(Age_last_seen2 < upper2)
 older1$Reached_min_age_1 <- 1
 older2$Reached_min_age_2 <- 1 
 
-older <- merge(older1, older2, by=c('BirdID', 'BirthDate1', 'BirthDate1', 'BirthDate2', 
-                           'Disperse', 'DispersalDate', 'FieldPeriodID', 'Age_at_disp1', 
+older <- merge(older1, older2, by=c('BirdID', 'BirthDate1', 'BirthDate2', 
+                           'Disperse', 'DispersalDate', 'DisperseFPID', 'Age_at_disp1', 
                            'Age_at_disp2', 'Date_last_seen', 'Age_last_seen1', 'Age_last_seen2'), all = TRUE)
 
 older %<>% 

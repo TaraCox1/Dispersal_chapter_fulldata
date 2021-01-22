@@ -18,9 +18,9 @@ disp_philo <- read.csv("2_Identifying_dispersers_and_philopatrics/disp_and_philo
 #Correct data format
 #Including data type
 disp_philo$BirdID <- factor(disp_philo $BirdID)
-disp_philo$FieldPeriodID <- factor(disp_philo $FieldPeriodID) #first field period seen in new territory
-disp_philo$TerritoryID <- factor(disp_philo $TerritoryID)
-disp_philo$NatalTerritory <- factor(disp_philo $NatalTerritory)
+disp_philo$FieldPeriodID <- factor(disp_philo $DisperseFPID) #first field period seen in new territory
+disp_philo$TerritoryID <- factor(disp_philo$DisperseTerritoryID)
+disp_philo$NatalTerritory <- factor(disp_philo$NatalTerritory)
 
 
 #Filtering down to required data by removing philopatrics and additional info on dispersers 

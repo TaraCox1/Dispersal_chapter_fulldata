@@ -161,7 +161,8 @@ group_size[group_size$BirdID==5596, "GroupSize.old"] <- 4
 group_size <- group_size %>% 
   mutate(GroupSize.all=ifelse(BirdID==6014 | BirdID==5573 | BirdID==3453 | BirdID==1729 | BirdID==1821 | BirdID==5605 | 
                                 BirdID==5842 | BirdID==6030 | BirdID==6029 | BirdID==6196 | BirdID==6546 | BirdID==6313 |
-                                BirdID==6564,3,GroupSize.all))
+                                BirdID==6564 | BirdID==5749 | BirdID==5624 | BirdID==6065 | BirdID==6780
+                                | BirdID==3643 | BirdID==4896,3,GroupSize.all))
 
 
 

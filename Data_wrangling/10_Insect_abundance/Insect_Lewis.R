@@ -1,9 +1,8 @@
 
 rm(list = ls())
 
-library(dplyr)
-library(plyr)
-library(ggplot2)
+library(tidyverse)
+library(magrittr)
 
 getwd()
 setwd("Data_wrangling")
@@ -77,8 +76,8 @@ winter.2020$Year <- as.factor(winter.2020$Year)
 db.ins.fp <- rbind.data.frame(db.ins.fp, winter.2020)
 
 insect <- db.ins.fp %>%
-          rename(InsectDensity = MeanInsects2) %>%
-          rename(LastFPIDNatalYear = Year) %>%
+          dplyr::rename(InsectDensity = MeanInsects2) %>%
+          dplyr::rename(LastFPIDNatalYear = Year) %>%
           select(LastFPIDNatalYear, InsectDensity)
 
 
@@ -98,7 +97,7 @@ disp_philo <- read.csv("2_Identifying_dispersers_and_philopatrics/disp_and_philo
 
 
 #Correct format
-disp_philo$LastFPIDNatalPeriodStart <- as.Date(disp_philo$LastFPIDNatalPeriodStart, '%d/%m/%Y')
+disp_philo$LastFPIDNatalPeriodStart <- as.Date(disp_philo$LastFPIDNatalPeriodStart, '%Y-%m-%d')
 
 #Include only month
 disp_philo$LastFPIDNatalYear <- as.numeric(format(disp_philo$LastFPIDNatalPeriodStart, "%Y"))

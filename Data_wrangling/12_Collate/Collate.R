@@ -46,8 +46,7 @@ distance <- read.csv('9_Dispersal_distance/Dispersal_distance.csv')
 
 #7.1. Insect abundance
 #Produced by script Insect_4
-#insect <- read.csv('10_Insect_abundance/Insect_density.csv')
-#insect %<>% select(BirdID, Insect_abundance)
+insect_ab <- read.csv('10_Insect_abundance/Insect_abundance.csv')
 
 
 #7.2. Insect density

@@ -7,10 +7,9 @@ getwd()
 setwd("Data_wrangling")
 
 
+library(tidyverse)
+library(magrittr)
 library(plyr)
-library(dplyr)
-library(ggplot2)
-
 
 # Retrieve data  ----------------------------------------------------------
 
@@ -79,16 +78,16 @@ disp_philo <- read.csv("2_Identifying_dispersers_and_philopatrics/disp_and_philo
 
 
 #Change name from FieldPeriodID in df FPIDPop and FPIDPopOld to LastFPIDNatal so it can merge with personality data
-FPIDPop %<>% rename(LastFPIDNatal = FieldPeriodID)
-FPIDPopOld %<>% rename(LastFPIDNatal = FieldPeriodID)
+FPIDPop %<>% dplyr::rename(LastFPIDNatal = FieldPeriodID)
+FPIDPopOld %<>% dplyr::rename(LastFPIDNatal = FieldPeriodID)
 
 
 #Merge population density and dispersal data
 predisp_pop <- merge(disp_philo, FPIDPop,by=c("LastFPIDNatal"), all.x=TRUE)
-predisp_pop %<>%  rename(PopDensity.all = IslandPopulation)
+predisp_pop %<>%  dplyr::rename(PopDensity.all = IslandPopulation)
 
 predisp_pop_old <- merge(predisp_pop, FPIDPopOld,by=c("LastFPIDNatal"),all.x=TRUE)
-predisp_pop_old <- predisp_pop_old %>% rename(PopDensity.old = IslandPopulation)
+predisp_pop_old <- predisp_pop_old %>% dplyr::rename(PopDensity.old = IslandPopulation)
 
 
 
