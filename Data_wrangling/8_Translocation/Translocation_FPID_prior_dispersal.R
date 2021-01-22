@@ -1,6 +1,4 @@
-##Check whether dispersal FPID is during or directly following a translocation event
-#Note, if FPID last resident in natal territory was 110, then it is calculated as the season before 110 (as no surveys etc. were calculated during this season)
-
+##Check whether last FPID natal is during or before a translocation event
 
 
 rm(list = ls())
@@ -8,10 +6,8 @@ rm(list = ls())
 getwd()
 setwd("Data_wrangling")
 
-library(plyr)
-library(dplyr)
-library(ggplot2)
-
+library(tidyverse)
+library(magrittr)
 
 
 
@@ -34,28 +30,35 @@ dispersal_tloc <- disp_philo %>%
 
 # Determine if dispersal is close to translocation event ------------------
 #Add column to enter translocation data
-dispersal_tloc$Translocation_FPID_prior <- NA
+  dispersal_tloc$LastFPIDNatal_Translocation <- NA
 
 
 
 
-#If column value = 110, 32/34 (34 overlaps with DS transloc), then fill column with 1, if NA then fill column with 0
-dispersal_tloc$Translocation_FPID_prior[is.na(dispersal_tloc$Translocation_FPID_prior)] <- 0
-dispersal_tloc$Translocation_FPID_prior[dispersal_tloc$LastFPIDNatal==110] <- 1
-dispersal_tloc$Translocation_FPID_prior[dispersal_tloc$LastFPIDNatal==32] <- 1
-dispersal_tloc$Translocation_FPID_prior[dispersal_tloc$LastFPIDNatal==34] <- 1
+#Translocation FPIDs: 120, 45, 33, 119 (FPId prior: 8, 10/12, 32/34, 110, respectively)
+#If column equals a transloc field period, add 1
+#Note that for some individuals, if field period prior to dispersal was a transloc field period, then I used the field period prior to it
+#This is because island censuses and surveys were not conducted in all transloc field periods, meaning group size/pop den/insect values would not be available
+#I did this for FPID 110. Therefore, use alternative closest field period to it (112)
 
+#If column value = 110/112, 32/34, , then fill column with 1, if NA then fill column with 0
 
-#Fill translocation of philoaptrics to NA
-#dispersal.trans$Translocation.FPID.prior[is.na(dispersal.trans$FieldPeriodID)] <- NA
+dispersal_tloc$LastFPIDNatal_Translocation[is.na(dispersal_tloc$LastFPIDNatal_Translocation)] <- 0
+dispersal_tloc$LastFPIDNatal_Translocation[dispersal_tloc$LastFPIDNatal==110] <- 1
+dispersal_tloc$LastFPIDNatal_Translocation[dispersal_tloc$LastFPIDNatal==112] <- 1
+dispersal_tloc$LastFPIDNatal_Translocation[dispersal_tloc$LastFPIDNatal==34] <- 1
+dispersal_tloc$LastFPIDNatal_Translocation[dispersal_tloc$LastFPIDNatal==32] <- 1
+dispersal_tloc$LastFPIDNatal_Translocation[dispersal_tloc$LastFPIDNatal==10] <- 1
+dispersal_tloc$LastFPIDNatal_Translocation[dispersal_tloc$LastFPIDNatal==12] <- 1
+dispersal_tloc$LastFPIDNatal_Translocation[dispersal_tloc$LastFPIDNatal==8] <- 1
+
 
 
 #Subset to include essential data
-dispersal_trans <- dispersal_trans[, -c(3:5)]
+dispersal_trans <- dispersal_tloc %>% select(BirdID, LastFPIDNatal_Translocation)
 
 
 #Save
-write.csv(dispersal.trans, 'Data_wrangling/8_Translocation/Translocation.FPID.prior.csv', row.names = FALSE)
+write.csv(dispersal_trans, '8_Translocation/Translocation.FPID.prior.csv', row.names = FALSE)
 
 
-#If a philopatric has lived through either 110 or 112, then should I note this in another column?

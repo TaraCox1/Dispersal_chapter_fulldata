@@ -15,7 +15,7 @@ setwd("Data_wrangling")
 #1. Disperser vs philopatric
 disp_philo <- read.csv("2_Identifying_dispersers_and_philopatrics/disp_and_philo.csv")
 disp_philo_filt <- disp_philo %>% 
-                   select(BirdID, Disperse, Inherit, DispersalDate, NatalTerritory)
+                  select(BirdID, Disperse, Inherit, DispersalDate, DispersalMonth2, NatalTerritory, DisperseTerritoryID)
                           
 
 
@@ -33,11 +33,10 @@ group <- read.csv('6_Group_size/Group_size.csv')
 
 #5.1. Translocation in any FPID spent in natal territory
 transloc <- read.csv('8_Translocation/Translocation.csv')
-transloc %<>% distinct()
 
 
 #5.2 Translocation last FPID seen in natal territory
-#transloc.last.fp <- read.csv('8_Translocation/Translocation.FPID.prior.csv')
+transloc.last.fp <- read.csv('8_Translocation/Translocation.FPID.prior.csv')
 
 
 #6. Distance
@@ -46,12 +45,12 @@ distance <- read.csv('9_Dispersal_distance/Dispersal_distance.csv')
 
 #7.1. Insect abundance
 #Produced by script Insect_4
-insect_ab <- read.csv('10_Insect_abundance/Insect_abundance.csv')
+insect_ab <- read.csv('10_Insect/Insect_abundance.csv')
 
 
 #7.2. Insect density
 #Produced by script Insect_Lewis
-insect_den <- read.csv('10_Insect_abundance/Insect_density.csv')
+insect_den <- read.csv('10_Insect/Insect_density.csv')
 insect_den %<>% select(BirdID, InsectDensity)
 
 
@@ -89,11 +88,15 @@ all_gs <- merge(all_pop, group, by=c('BirdID'))
 
 all_transloc <- merge(all_gs, transloc, by=c('BirdID'), all.x = TRUE)
 
+all_transloc_lastfp <- merge(all_transloc, transloc.last.fp, by=c('BirdID'), all.x = TRUE)
+
 all_distance <- merge(all_transloc, distance, by=c('BirdID'), all.x = TRUE)
 
-all_insect_den <- merge(all_distance, insect_den, by=c('BirdID'))
+all_insect_ab <- merge(all_distance, insect_ab, by=c('BirdID'), all.x = TRUE)
 
-all_sex <- merge(all_insect_den, sex, by=c('BirdID'))
+all_insect_den <- merge(all_insect_ab, insect_den, by=c('BirdID'), all.x = TRUE)
+
+all_sex <- merge(all_insect_den, sex, by=c('BirdID'), all.x = TRUE)
 
 
 
@@ -112,9 +115,9 @@ obj2 <- merge(all_sex, obj, by=c('BirdID'))
 
 # Save --------------------------------------------------------------------
 
-write.csv(envir_all, '11_Collate/envir_all.csv', row.names = FALSE)
-write.csv(obj_all, '11_Collate/obj_all.csv', row.names = FALSE)
+write.csv(envir2, '13_Collate/envir_all.csv', row.names = FALSE)
+write.csv(obj2, '13_Collate/obj_all.csv', row.names = FALSE)
 
-write.csv(envir_all, '../envir_all.csv', row.names = FALSE)
-write.csv(obj_all, '../obj_all.csv', row.names = FALSE)
+write.csv(envir2, '../envir_all.csv', row.names = FALSE)
+write.csv(obj2, '../obj_all.csv', row.names = FALSE)
 
