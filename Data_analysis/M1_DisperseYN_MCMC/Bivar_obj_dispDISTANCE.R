@@ -172,7 +172,7 @@ hd.haggis = list(R = list(V = diag(c(1, 0.0001), 2, 2), nu = 1.002, fix=2),
 
 
 # 4. Run bivariate models -------------------------------------------------------------------
-#Bivariate model for novel environment exploration and disperse distance
+#Bivariate model for novel object exploration and disperse distance
 
 m1.1.odata <- dispobj2 %>%
   filter(!is.na(InsectAbundance))
@@ -180,7 +180,7 @@ m1.1.odata <- dispobj2 %>%
 
 
 
-# Model 1.1: including all fixed effects for dispersal and envir scores --------
+# Model 1.1: including all fixed effects for dispersal and obj scores -------------------------------------------------
 
 #NOTE: Cannot scale() envir score because Poisson distribution cannot have negative integers 
 #Does not run with hd.haggis prior - error states to use a stronger prior 
@@ -215,6 +215,11 @@ m1.1_o <- MCMCglmm(cbind(obj.score, boxcoxDistance) ~ trait-1 +
                  pr=TRUE,
                  data = as.data.frame(m1.1.odata))
 
+
+#Runs, but produces warning messages, need a more informative prior.
+#'some fixed effects are not estimable and have been removed. Use singular.ok=TRUE to sample these effects, but use an informative prior!#
+
+summary(m1.1_o)
 
 
 
@@ -262,14 +267,15 @@ m1.2_o <- MCMCglmm(cbind(obj.score, boxcoxDistance) ~ trait-1 +
 
 
 
-# Model 1.3: only fixed effects with a significant effect on dispersal distance and envir score -----------------
+
+# Model 1.3: only fixed effects with a significant effect on dispersal distance and obj score -----------------
 
 m1.3_o <- MCMCglmm(cbind(obj.score, boxcoxDistance) ~ trait-1 +
                    trait:Sex +
                    at.level(trait,1):Age +
                    at.level(trait,1):Age2 +
                    at.level(trait,1):Novel.object.assay.number, 
-                    at.level(trait,2):scale(InsectAbundance),
+                   at.level(trait,2):scale(InsectAbundance),
                  random =~ us(trait):ID,
                  rcov =~ us(trait):units,
                  family = c("poisson","gaussian"),
@@ -282,3 +288,70 @@ m1.3_o <- MCMCglmm(cbind(obj.score, boxcoxDistance) ~ trait-1 +
                  data = as.data.frame(dispenv5))
 
 
+
+
+
+
+
+
+
+
+# Model 1.4: only fixed effects for obj score ---------------------------------------------------------------------------
+
+m1.4_o <- MCMCglmm(cbind(obj.score, boxcoxDistance) ~ trait-1 +
+                     trait:Sex +
+                     at.level(trait,1):Mass +
+                     at.level(trait,1):Age +
+                     at.level(trait,1):Age2 +
+                     at.level(trait,1):Season2 +
+                     at.level(trait,1):Colour +
+                     at.level(trait,1):Branch +
+                     at.level(trait,1):Treerelease +
+                     at.level(trait,1):TentPoles +
+                     at.level(trait,1):BranchHeight +
+                     at.level(trait,1):Status +
+                     at.level(trait,1):Interval +
+                     at.level(trait,1):Weather +
+                     at.level(trait,1):Novel.object.assay.number +
+                     at.level(trait,1):Testno, 
+                   random =~ us(trait):ID,
+                   rcov =~ us(trait):units,
+                   family = c("poisson","gaussian"),
+                   prior = hd.haggis.simp,
+                   nitt=750000,
+                   burnin=50000,
+                   thin=175,
+                   verbose = TRUE,
+                   pr=TRUE,
+                   data = as.data.frame(m1.1.odata))
+
+
+#Prior still not informative enough 
+
+summary(m1.4_o)
+
+
+#Check correlation when one rand effect (ID) is in the model
+mcmc_m1.4_fit_cor_Ofit <- m1.4_o$VCV[,"traitboxcoxDistance:traitobj.score.ID"]/
+  (sqrt(m1.4_o$VCV[,"traitboxcoxDistance:traitboxcoxDistance.ID"])*
+     sqrt(m1.4_o$VCV[,"traitobj.score:traitobj.score.ID"]))
+
+
+#Plot
+df_mcmc_cors1_o <- tibble(Traits = c("Object exploration, Distance"),
+                        Estimate = c(mean(mcmc_m1.4_fit_cor_Ofit)),
+                        Lower = c(HPDinterval(mcmc_m1.4_fit_cor_Ofit)[,"lower"]),
+                        Upper = c(HPDinterval(mcmc_m1.4_fit_cor_Ofit)[,"upper"]))
+
+
+ggplot(df_mcmc_cors1_o, aes(x = Traits, y = Estimate)) +
+  geom_pointrange(aes(ymin = Lower,
+                      ymax = Upper)) +
+  geom_hline(yintercept = 0,
+             linetype = "dotted", alpha = 0.3) +
+  scale_x_discrete(limits = c("Object exploration, Distance")) +
+  labs(x = "Trait combinations",
+       y = "Correlation (Estimate +/- 95% CIs)") +
+  ylim(-2,2) +
+  coord_flip() +
+  theme_classic()

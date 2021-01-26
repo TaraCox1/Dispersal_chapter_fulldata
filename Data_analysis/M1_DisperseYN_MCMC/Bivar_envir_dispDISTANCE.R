@@ -65,7 +65,6 @@ fullenv$Branch<-as.factor(fullenv$ExplorationBranchOrientation)
 fullenv$Treerelease<-as.factor(fullenv$ReleaseMethod)
 fullenv$TentPoles<-as.factor(fullenv$TentPoles)
 fullenv$BranchHeight<-as.factor(fullenv$BranchHeight)
-fullenv$Date <- as.Date(fullenv$Date, "%d/%m/%Y")
 fullenv$Season2<-as.numeric(fullenv$Season)
 
 
@@ -277,9 +276,9 @@ m1.3 <- MCMCglmm(cbind(envir.score, orderNormDistance) ~ trait-1 +
                  rcov =~ us(trait):units,
                  family = c("poisson","gaussian"),
                  prior = hd.haggis.simp,
-                 nitt=750000,
-                 burnin=50000,
-                 thin=175,
+                 nitt=7500000,
+                 burnin=500000,
+                 thin=1750,
                  verbose = TRUE,
                  pr=TRUE,
                  data = as.data.frame(dispenv5))
@@ -288,7 +287,7 @@ m1.3 <- MCMCglmm(cbind(envir.score, orderNormDistance) ~ trait-1 +
 
 
 # Check model 1.2 outputs
-plot(m1.4$VCV)
+plot(m1.3$VCV)
 
 
 #Remember: 
@@ -373,6 +372,34 @@ ggplot(df_mcmc_cors1, aes(x = Traits, y = Estimate)) +
 
 
 
+#####################Remove unnecessary repeats in fixed effects data###################
 
+#Remove personality data and subset to distinct rows 
+dispenv3 <- dispenv2 %>% 
+  select(-(Novel.environment.score | StndBody.mass | Weather | Observer | TentColour |
+             ExplorationBranchOrientation | ReleaseMethod | Time.between.tests | Social.status |
+             TentPoles | BranchHeight | Days.into.season | Testno | Ageclass | Age | Age2 |
+             Age_sq | Season | BodyMass | envir.score | Person | Status | Novel.environment.assay.number |
+             NovelEnvirASSAY_REP | Mass | Interval | Colour | Branch | Treerelease | Season2 | ID | Sex)) %>%
+  distinct() %>% 
+  group_by(BirdID) %>%
+  mutate(AssayID = 1:n()) #group by BirdID and create a row ID 
+
+
+
+#Remove dispersal data, group by bird ID and add an ID for assay number 
+dispenv4 <- dispenv2 %>%
+  select(BirdID | Novel.environment.score | StndBody.mass | Weather | Observer | TentColour |
+           ExplorationBranchOrientation | ReleaseMethod | Time.between.tests | Social.status |
+           TentPoles | BranchHeight | Days.into.season | Testno | Ageclass | Age | Age2 |
+           Age_sq | Season | BodyMass | envir.score | Person | Status | Novel.environment.assay.number |
+           NovelEnvirASSAY_REP | Mass | Interval | Colour | Branch | Treerelease | Season2 | ID | Sex) %>%
+  arrange(BirdID, Novel.environment.assay.number) %>%
+  group_by(BirdID) %>%
+  mutate(AssayID = 1:n())
+
+
+#Merge together 
+dispenv5 <- merge(dispenv3, dispenv4, by =c('BirdID', 'AssayID'), all = TRUE)
 
 
