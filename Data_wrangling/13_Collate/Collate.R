@@ -7,7 +7,7 @@ library(dplyr)
 library(magrittr)
 
 getwd()
-setwd("Data_wrangling")
+setwd("../../Data_wrangling")
 
 # Read in data ------------------------------------------------------------
 
@@ -15,7 +15,7 @@ setwd("Data_wrangling")
 #1. Disperser vs philopatric
 disp_philo <- read.csv("2_Identifying_dispersers_and_philopatrics/disp_and_philo.csv")
 disp_philo_filt <- disp_philo %>% 
-                  select(BirdID, Disperse, Inherit, DispersalDate, DispersalMonth2, NatalTerritory, DisperseTerritoryID)
+                  select(BirdID, Disperse, Inherit, DispersalDate, DispersalMonth2, NatalTerritory, DisperseTerritoryID, DisperseStatus, NatalStatus, DisperseStatus2)
                           
 
 
@@ -67,13 +67,13 @@ envir %<>%
       select(BirdID, Novel.environment.score, StndBody.mass, BodyMass, Weather, 
              Observer, TentColour, ExplorationBranchOrientation, ReleaseMethod,
              Time.between.tests,  Social.status, TentPoles, BranchHeight, 
-             Days.into.season, Testno, Ageclass, Age, Age2, Age_sq)
+             Days.into.season, Testno, Ageclass, Age, Age2, Age_sq, Season)
 
 obj %<>%
   select(BirdID, Novel.object.score, StndBody.mass, BodyMass, Weather, 
          Observer, TentColour, ExplorationBranchOrientation, ReleaseMethod,
          Time.between.tests,  Social.status, TentPoles, BranchHeight, 
-         Days.into.season, Testno, Ageclass, Age_sd, Age_sq, Age_sq_sd)
+         Days.into.season, Testno, Ageclass, Age_sd, Age_sq, Age_sq_sd, Season)
 
 
 # Merge -------------------------------------------------------------------
