@@ -7,7 +7,7 @@ library(dplyr)
 library(magrittr)
 
 getwd()
-setwd("../../Data_wrangling")
+setwd("Data_wrangling")
 
 # Read in data ------------------------------------------------------------
 
@@ -15,7 +15,7 @@ setwd("../../Data_wrangling")
 #1. Disperser vs philopatric
 disp_philo <- read.csv("2_Identifying_dispersers_and_philopatrics/disp_and_philo.csv")
 disp_philo_filt <- disp_philo %>% 
-                  select(BirdID, Disperse, Inherit, DispersalDate, DispersalMonth2, NatalTerritory, DisperseTerritoryID, DisperseStatus, NatalStatus, DisperseStatus2)
+                  select(BirdID, Disperse, Inherit, DispersalDate, DispersalMonth2, NatalTerritory, DisperseTerritoryID, DisperseFPID, DisperseStatus, NatalStatus, DisperseStatus2)
                           
 
 
@@ -120,4 +120,4 @@ write.csv(obj2, '13_Collate/obj_all.csv', row.names = FALSE)
 
 write.csv(envir2, '../envir_all.csv', row.names = FALSE)
 write.csv(obj2, '../obj_all.csv', row.names = FALSE)
-
+ 

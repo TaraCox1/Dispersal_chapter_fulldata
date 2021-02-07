@@ -298,7 +298,7 @@ m1.3_o <- MCMCglmm(cbind(obj.score, boxcoxDistance) ~ trait-1 +
 
 # Model 1.4: only fixed effects for obj score ---------------------------------------------------------------------------
 
-m1.4_o <- MCMCglmm(cbind(obj.score, boxcoxDistance) ~ trait-1 +
+m1.4.2_o <- MCMCglmm(cbind(obj.score, boxcoxDistance) ~ trait-1 +
                      trait:Sex +
                      at.level(trait,1):Mass +
                      at.level(trait,1):Age +
@@ -323,6 +323,7 @@ m1.4_o <- MCMCglmm(cbind(obj.score, boxcoxDistance) ~ trait-1 +
                    thin=175,
                    verbose = TRUE,
                    pr=TRUE,
+                   singular.ok = TRUE,
                    data = as.data.frame(m1.1.odata))
 
 

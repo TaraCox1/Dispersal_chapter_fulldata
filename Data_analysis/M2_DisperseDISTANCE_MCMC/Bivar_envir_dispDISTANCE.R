@@ -3,7 +3,7 @@
 rm(list = ls())
 
 getwd()
-setwd("Data_analysis/M1_DisperseYN_MCMC")
+setwd("Data_analysis/M2_DisperseDISTANCE_MCMC")
 
 
 library(lme4)
@@ -21,7 +21,7 @@ library(car)
 
 
 #Novel envir data
-fullenv <- read.csv("envir_all.csv")
+fullenv <- read.csv("../envir_all.csv")
 
 
 fullenv$ID<-as.factor(fullenv$BirdID)
@@ -65,7 +65,6 @@ fullenv$Branch<-as.factor(fullenv$ExplorationBranchOrientation)
 fullenv$Treerelease<-as.factor(fullenv$ReleaseMethod)
 fullenv$TentPoles<-as.factor(fullenv$TentPoles)
 fullenv$BranchHeight<-as.factor(fullenv$BranchHeight)
-fullenv$Date <- as.Date(fullenv$Date, "%d/%m/%Y")
 fullenv$Season2<-as.numeric(fullenv$Season)
 
 
@@ -95,22 +94,21 @@ shapiro.test(unique_distance$orderNormDistance) #>0.05 is normal distribution
 hist(unique_distance$orderNormDistance)
 
 
-
 #Standardize any continuous fixed effects
 predictors <- dispenv %>% select('BirdID', 'InsectDensity', 'PopDensity.old', 
-                                       'PopDensity.all', 'GroupSize.old', 
-                                       'GroupSize.all', 'InsectAbundance') #subset continuous predictors, keep birdID so I can subset to unique rows below
+                                 'PopDensity.all', 'GroupSize.old', 
+                                 'GroupSize.all', 'InsectAbundance') #subset continuous predictors, keep birdID so I can subset to unique rows below
 
 predictors <- predictors %>% 
-              distinct() %>% #subset to unique rows 
-              select(!(BirdID)) %>% #remove birdid as unique rows have been identified 
-              rename(InsectDensityScaled = InsectDensity,
-                     InsectAbundanceScaled = InsectAbundance,
-                     PopDensity.oldScaled = PopDensity.old,
-                     PopDensity.allScaled = PopDensity.all,
-                     GroupSize.oldScaled = GroupSize.old,
-                     GroupSize.allScaled = GroupSize.all)
-                        
+  distinct() %>% #subset to unique rows 
+  select(!(BirdID)) %>% #remove birdid as unique rows have been identified 
+  rename(InsectDensityScaled = InsectDensity,
+         InsectAbundanceScaled = InsectAbundance,
+         PopDensity.oldScaled = PopDensity.old,
+         PopDensity.allScaled = PopDensity.all,
+         GroupSize.oldScaled = GroupSize.old,
+         GroupSize.allScaled = GroupSize.all)
+
 s.predictors <- scale(predictors) #scale predictors
 
 
@@ -148,15 +146,24 @@ corvif(s.predictors) #strong correlation between insect abundance + density, G/S
 
 #Copy prior from haggis tutorial 
 hd.haggis.simp = list(R = list(V = diag(c(1, 0.0001), 2, 2), nu = 1.002, fix=2),
-                  G = list(G1 = list(V = diag(2), nu = 2,
-                                     alpha.mu = rep(0,2),
-                                     alpha.V = diag(25^2,2,2))))
+                      G = list(G1 = list(V = diag(2), nu = 2,
+                                         alpha.mu = rep(0,2),
+                                         alpha.V = diag(25^2,2,2))))
 
 
 
 
 
 #Merge haggis prior with HD prior (merged with haggis prior as this considers that lack of within individual variance of distance that occurs due to only one measure)
+hd.haggis.mod.G2 = list(R = list(V = diag(c(1, 0.0001), 2, 2), nu = 1.002, fix=2),
+                 G = list(G1 = list(V = diag(2), nu = 2, #proper cauchy prior 
+                                    alpha.mu = rep(0,2),
+                                    alpha.V = diag(25^2,2,2))),
+                           G2 = list(V = diag(1), nu = 1,   #parameter expanded prior
+                                    alpha.mu = 0,
+                                    alpha.V = diag(1000)))
+
+
 hd.haggis = list(R = list(V = diag(c(1, 0.0001), 2, 2), nu = 1.002, fix=2),
                  G = list(G1 = list(V = diag(2), nu = 2,
                                     alpha.mu = rep(0,2),
@@ -167,13 +174,47 @@ hd.haggis = list(R = list(V = diag(c(1, 0.0001), 2, 2), nu = 1.002, fix=2),
 
 
 
+hd.haggis.mod2.G2 = list(R = list(V = diag(c(1, 0.0001), 2, 2), nu = 1.002, fix=2),
+                        G = list(G1 = list(V = diag(2), nu = 2, 
+                                           alpha.mu = rep(0,2),
+                                           alpha.V = diag(25^2,2,2))),
+                                 G2 = list(V = diag(1), nu = 1,  
+                                          alpha.mu = 0,
+                                          alpha.V = diag(25^2,1)))
+
+
+
+#Edin priors
+#For a univariate model with one rand effect
+a <- 1000
+prior2 <- list(R = list(V = diag(1), nu = 0.002),
+               G = list(G1 = list(V = diag(1), nu = 1, alpha.mu = 0, alpha.V = diag(1)*a)))
+
+
+#Tom Houslay priors
+#For bivariate model with one rand effect
+prior_E_B_1px = list(R = list(V = diag(2), nu = 0.002),
+                     G = list(G1 = list(V = diag(2), nu = 2,
+                                        alpha.mu = rep(0,2),
+                                        alpha.V = diag(25^2,2,2))))
+
+
+#For trivariate model with one rand effect, where one response variable has one value per individual, but four repeats for the other two response variablea
+prior_E_B_fit_1px = list(R = list(V = diag(c(1,1,0.0001),3,3), nu = 1.002, fix = 3),
+                         G = list(G1 = list(V = diag(3), nu = 3,
+                                            alpha.mu = rep(0,3),
+                                            alpha.V = diag(25^2,3,3))))
+
+
+
+
 
 
 # 4. Run bivariate models -------------------------------------------------------------------
 #Bivariate model for novel environment exploration and disperse distance
 
 m1.1.data <- dispenv2 %>%
-             filter(!is.na(InsectAbundance))
+  filter(!is.na(InsectAbundanceScaled))
 
 
 
@@ -182,35 +223,34 @@ m1.1.data <- dispenv2 %>%
 
 #NOTE: Cannot scale() envir score because Poisson distribution cannot have negative integers 
 m1.1 <- MCMCglmm(cbind(envir.score, orderNormDistance) ~ trait-1 +
-                      trait:Sex +
-                      at.level(trait,1):Mass +
-                      at.level(trait,1):Age +
-                      at.level(trait,1):Age2 +
-                      at.level(trait,1):Season2 +
-                      at.level(trait,1):Colour +
-                      at.level(trait,1):Branch +
-                      at.level(trait,1):Treerelease +
-                      at.level(trait,1):TentPoles +
-                      at.level(trait,1):BranchHeight +
-                      at.level(trait,1):Status +
-                      at.level(trait,1):Interval +
-                      at.level(trait,1):Weather +
-                      at.level(trait,1):Novel.environment.assay.number +
-                      at.level(trait,1):Testno +
-                      at.level(trait,2):PopDensity.oldScaled +
-                      at.level(trait,2):GroupSize.oldScaled +
-                      at.level(trait,2):TranslocationYN + 
-                      at.level(trait,2):InsectAbundanceScaled,
-                    random =~ us(trait):ID,
-                    rcov =~ us(trait):units,
-                    family = c("poisson","gaussian"),
-                    prior = hd.haggis.simp,
-                    nitt=750000,
-                    burnin=50000,
-                    thin=175,
-                    verbose = TRUE,
-                    pr=TRUE,
-                    data = as.data.frame(m1.1.data))
+                   trait:Sex +
+                   at.level(trait,1):Mass +
+                   at.level(trait,1):Age +
+                   at.level(trait,1):Age2 +
+                   at.level(trait,1):Season2 +
+                   at.level(trait,1):Colour +
+                   at.level(trait,1):Branch +
+                   at.level(trait,1):Treerelease +
+                   at.level(trait,1):TentPoles +
+                   at.level(trait,1):BranchHeight +
+                   at.level(trait,1):Status +
+                   at.level(trait,1):Interval +
+                   at.level(trait,1):Weather +
+                   at.level(trait,1):Novel.environment.assay.number +
+                   at.level(trait,2):PopDensity.oldScaled +
+                   at.level(trait,2):GroupSize.oldScaled +
+                   at.level(trait,2):TranslocationYN + 
+                   at.level(trait,2):InsectAbundanceScaled,
+                 random =~ us(trait):ID,
+                 rcov =~ us(trait):units,
+                 family = c("poisson","gaussian"),
+                 prior = hd.haggis.simp,
+                 nitt=750000,
+                 burnin=50000,
+                 thin=175,
+                 verbose = TRUE,
+                 pr=TRUE,
+                 data = as.data.frame(m1.1.data))
 
 
 #Runs, but produces warning messages, need a more informative prior.
@@ -240,15 +280,14 @@ m1.2 <- MCMCglmm(cbind(envir.score, orderNormDistance) ~ trait-1 +
                    at.level(trait,1):Interval +
                    at.level(trait,1):Weather +
                    at.level(trait,1):Novel.environment.assay.number +
-                   at.level(trait,1):Testno +
                    at.level(trait,2):PopDensity.allScaled +
                    at.level(trait,2):GroupSize.allScaled +
                    at.level(trait,2):TranslocationYN + 
                    at.level(trait,2):InsectAbundanceScaled,
-                 random =~ us(trait):ID + us(trait):Person,
+                 random =~ us(trait):ID + idh(at.level(trait,1)):Person,
                  rcov =~ us(trait):units,
                  family = c("poisson","gaussian"),
-                 prior = hd.haggis,
+                 prior = hd.haggis.mod2.G2,
                  nitt=750000,
                  burnin=50000,
                  thin=175,
@@ -258,37 +297,32 @@ m1.2 <- MCMCglmm(cbind(envir.score, orderNormDistance) ~ trait-1 +
 
 
 
-
-
-
-
-
 # Model 1.3: only fixed effects with a significant effect on dispersal distance and envir score -----------------
 
 m1.3 <- MCMCglmm(cbind(envir.score, orderNormDistance) ~ trait-1 +
-                      trait:Sex +
-                      at.level(trait,1):Age +
-                      at.level(trait,1):Age2 +
-                      at.level(trait,1):Colour +
-                      at.level(trait,1):Branch +
-                      at.level(trait,1):Novel.environment.assay.number, 
-                 #     at.level(trait,2):scale(InsectAbundance),
-                    random =~ us(trait):ID,
-                    rcov =~ us(trait):units,
-                    family = c("poisson","gaussian"),
-                    prior = hd.haggis.simp,
-                    nitt=750000,
-                    burnin=50000,
-                    thin=175,
-                    verbose = TRUE,
-                    pr=TRUE,
-                    data = as.data.frame(dispenv5))
+                   trait:Sex +
+                   at.level(trait,1):Age +
+                   at.level(trait,1):Age2 +
+                   at.level(trait,1):Colour +
+                   at.level(trait,1):Branch +
+                   at.level(trait,1):Novel.environment.assay.number + 
+                      at.level(trait,2):scale(InsectAbundance),
+                 random =~ us(trait):ID,
+                 rcov =~ us(trait):units,
+                 family = c("poisson","gaussian"),
+                 prior = hd.haggis.simp,
+                 nitt=1500000,
+                 burnin=100000,
+                 thin=350,
+                 verbose = TRUE,
+                 pr=TRUE,
+                 data = as.data.frame(dispenv5))
 
 
 
 
 # Check model 1.2 outputs
-plot(m1.4$VCV)
+plot(m1.3$VCV)
 
 
 #Remember: 
@@ -303,13 +337,13 @@ summary(m1.4)
 
 #Check convergence 
 #Passed? (should all pass to be good), there are lots of fails
-heidel.diag(m1.1.hd.2$Sol)
-heidel.diag(m1.1.hd.2$VCV)
+heidel.diag(m1.3$Sol)
+heidel.diag(m1.3$VCV)
 
 
 #<2 z-score, so non-significant is good (tests similarity between first and last 10% of iterations)
-t <- geweke.diag(m1.1.hd.2$Sol)
-geweke.diag(m1.1.hd.2$VCV)
+geweke.diag(m1.3$Sol)
+geweke.diag(m1.3$VCV)
 
 
 # Plot model outputs 
@@ -317,7 +351,7 @@ geweke.diag(m1.1.hd.2$VCV)
 #Check repeatability of envir exploration
 mcmc_prop_E <- m1.4$VCV[,"traitenvir.score:traitenvir.score.ID"]/(
   m1.4$VCV[,"traitenvir.score:traitenvir.score.ID"] +
-   # m1.1.hd.2$VCV[,"traitenvir.score:traitenvir.score.Person"] +
+    # m1.1.hd.2$VCV[,"traitenvir.score:traitenvir.score.Person"] +
     m1.4$VCV[,"traitenvir.score:traitenvir.score.units"]
 )
 
@@ -337,21 +371,21 @@ mcmc_E_B_fit_cor_Efit <- m1.1.hd.2$VCV[,"traitboxcoxDistance:traitenvir.score.ID
 
 
 #Check correlation when one rand effect (ID) is in the model
-mcmc_m1.1_fit_cor_Efit <- m1.1$VCV[,"traitorderNormDistance:traitenvir.score.ID"]/
-  (sqrt(m1.1$VCV[,"traitorderNormDistance:traitorderNormDistance.ID"])*
-     sqrt(m1.1$VCV[,"traitenvir.score:traitenvir.score.ID"]))
+mcmc_m1.3_fit_cor_Efit <- m1.3$VCV[,"traitorderNormDistance:traitenvir.score.ID"]/
+  (sqrt(m1.3$VCV[,"traitorderNormDistance:traitorderNormDistance.ID"])*
+     sqrt(m1.3$VCV[,"traitenvir.score:traitenvir.score.ID"]))
 
 
 #Plot
-df_mcmc_cors1 <- tibble(Traits = c("Environment exploration, Distance"),
-                       Estimate = c(mean(mcmc_m1.1_fit_cor_Efit)),
-                       Lower = c(HPDinterval(mcmc_m1.1_fit_cor_Efit)[,"lower"]),
-                       Upper = c(HPDinterval(mcmc_m1.1_fit_cor_Efit)[,"upper"]))
+df_mcmc_cors3 <- tibble(Traits = c("Environment exploration, Distance"),
+                        Estimate = c(mean(mcmc_m1.3_fit_cor_Efit)),
+                        Lower = c(HPDinterval(mcmc_m1.1_fit_cor_Efit)[,"lower"]),
+                        Upper = c(HPDinterval(mcmc_m1.1_fit_cor_Efit)[,"upper"]))
 
 
 
 
-ggplot(df_mcmc_cors1, aes(x = Traits, y = Estimate)) +
+ggplot(df_mcmc_cors3, aes(x = Traits, y = Estimate)) +
   geom_pointrange(aes(ymin = Lower,
                       ymax = Upper)) +
   geom_hline(yintercept = 0,
@@ -359,56 +393,9 @@ ggplot(df_mcmc_cors1, aes(x = Traits, y = Estimate)) +
   scale_x_discrete(limits = c("Environment exploration, Distance")) +
   labs(x = "Trait combinations",
        y = "Correlation (Estimate +/- 95% CIs)") +
-  ylim(-3,3) +
+  ylim(-1,1) +
   coord_flip() +
   theme_classic()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -424,28 +411,30 @@ ggplot(df_mcmc_cors1, aes(x = Traits, y = Estimate)) +
 
 #Remove personality data and subset to distinct rows 
 dispenv3 <- dispenv2 %>% 
-            select(-(Novel.environment.score | StndBody.mass | Weather | Observer | TentColour |
-                       ExplorationBranchOrientation | ReleaseMethod | Time.between.tests | Social.status |
-                       TentPoles | BranchHeight | Days.into.season | Testno | Ageclass | Age | Age2 |
-                       Age_sq | Season | BodyMass | envir.score | Person | Status | Novel.environment.assay.number |
-                       NovelEnvirASSAY_REP | Mass | Interval | Colour | Branch | Treerelease | Season2 | ID | Sex)) %>%
-            distinct() %>% 
-            group_by(BirdID) %>%
-            mutate(AssayID = 1:n()) #group by BirdID and create a row ID 
+  select(-(Novel.environment.score | StndBody.mass | Weather | Observer | TentColour |
+             ExplorationBranchOrientation | ReleaseMethod | Time.between.tests | Social.status |
+             TentPoles | BranchHeight | Days.into.season | Testno | Ageclass | Age | Age2 |
+             Age_sq | Season | BodyMass | envir.score | Person | Status | Novel.environment.assay.number |
+             NovelEnvirASSAY_REP | Mass | Interval | Colour | Branch | Treerelease | Season2 | ID | Sex)) %>%
+  distinct() %>% 
+  group_by(BirdID) %>%
+  mutate(AssayID = 1:n()) #group by BirdID and create a row ID 
 
 
 
 #Remove dispersal data, group by bird ID and add an ID for assay number 
 dispenv4 <- dispenv2 %>%
-            select(BirdID | Novel.environment.score | StndBody.mass | Weather | Observer | TentColour |
-                  ExplorationBranchOrientation | ReleaseMethod | Time.between.tests | Social.status |
-                  TentPoles | BranchHeight | Days.into.season | Testno | Ageclass | Age | Age2 |
-                  Age_sq | Season | BodyMass | envir.score | Person | Status | Novel.environment.assay.number |
-                  NovelEnvirASSAY_REP | Mass | Interval | Colour | Branch | Treerelease | Season2 | ID | Sex) %>%
-            arrange(BirdID, Novel.environment.assay.number) %>%
-            group_by(BirdID) %>%
-            mutate(AssayID = 1:n())
+  select(BirdID | Novel.environment.score | StndBody.mass | Weather | Observer | TentColour |
+           ExplorationBranchOrientation | ReleaseMethod | Time.between.tests | Social.status |
+           TentPoles | BranchHeight | Days.into.season | Testno | Ageclass | Age | Age2 |
+           Age_sq | Season | BodyMass | envir.score | Person | Status | Novel.environment.assay.number |
+           NovelEnvirASSAY_REP | Mass | Interval | Colour | Branch | Treerelease | Season2 | ID | Sex) %>%
+  arrange(BirdID, Novel.environment.assay.number) %>%
+  group_by(BirdID) %>%
+  mutate(AssayID = 1:n())
 
 
 #Merge together 
 dispenv5 <- merge(dispenv3, dispenv4, by =c('BirdID', 'AssayID'), all = TRUE)
+
+
